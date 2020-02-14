@@ -1,0 +1,21 @@
+[package]
+name = "zqtt"
+version = "0.1.0"
+authors = ["Anqur <anqurvanillapy@gmail.com>"]
+edition = "2018"
+license = "MIT"
+description = "Zqtt, a fast and safe MQTT broker"
+readme = ".github/README.md"
+categories = ["network-programming"]
+repository = "https://github.com/zfair/zqtt-rs"
+
+[dependencies]
+actix = "0.9"
+
+[lib]
+name = "zqtt"
+path = "src/lib.rs"
+
+[[bin]]
+name = "zqtt-cli"
+path = "src/cli/mod.rs"
