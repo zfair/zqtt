@@ -10,15 +10,30 @@ categories = ["network-programming"]
 repository = "https://github.com/zfair/zqtt-rs"
 
 [dependencies]
-log = { version = "0.4" }
+log = "0.4"
 actix = "0.10.0-alpha.2"
 actix-web = "2"
 actix-rt = "1"
-tokio = { version = "0.2.6", default-features = false, features=["rt-core", "rt-util", "io-driver", "io-util", "tcp", "uds", "udp", "time", "signal", "sync"] }
-tokio-util   = { version = "0.2", features = ["full"] }
+tokio-util = { version = "0.2", features = ["full"] }
 futures = "0.3.4"
 mqtt3 = { git = "https://github.com/tekjar/mqtt3" }
 bytes = { version = "0.5", features = ["serde"] }
+
+[dependencies.tokio]
+version = "0.2.6"
+default-features = false
+features = [
+    "rt-core",
+    "rt-util",
+    "io-driver",
+    "io-util",
+    "tcp",
+    "uds",
+    "udp",
+    "time",
+    "signal",
+    "sync"
+]
 
 [lib]
 name = "zqtt"

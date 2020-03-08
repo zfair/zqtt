@@ -1,15 +1,14 @@
-use log::{info, trace, warn, error};
 use actix::prelude::*;
-use std::io::{self, ErrorKind, Cursor};
-use std::time::{Instant};
-use tokio::io::WriteHalf;
-use tokio::net::{TcpStream};
-use std::net;
+use log::{error, info};
 use mqtt3::{self, Packet};
+use std::io;
+use std::net;
+use std::time::Instant;
+use tokio::io::WriteHalf;
+use tokio::net::TcpStream;
 
-use super::server;
 use super::codec;
-
+use super::server;
 
 pub struct Session {
     // store broker addr
@@ -23,15 +22,14 @@ pub struct Session {
     connect_at: Option<Instant>,
 }
 
-impl Session{
-    /*  */
+impl Session {
     pub fn new(
         luid: u64,
         broker_addr: Addr<server::Broker>,
         socket_addr: net::SocketAddr,
         writer: actix::io::FramedWrite<WriteHalf<TcpStream>, codec::MqttCodec>,
     ) -> Session {
-        Session{
+        Session {
             luid: luid,
             broker_addr: broker_addr,
             socket_addr: socket_addr,
@@ -55,30 +53,30 @@ impl StreamHandler<Result<Packet, io::Error>> for Session {
             Ok(packet) => {
                 match packet {
                     // TODO: implement all mqtt packet type
-                    Packet::Connect(connect) => {
-                        self.broker_addr.send(
-                            server::SessionConnect{
+                    Packet::Connect(_) => {
+                        self.broker_addr
+                            .send(server::SessionConnect {
                                 session_id: self.luid,
                                 session_addr: ctx.address(),
-                            },
-                        ).into_actor(
-                            self,
-                        ).then(|res, act, ctx| {
-                            match res {
-                                Ok(_) => {
-                                    act.connect_at = Some(Instant::now());
-                                    act.writer.write(Packet::Connack(mqtt3::Connack{
-                                        session_present: false,
-                                        code: mqtt3::ConnectReturnCode::Accepted,
-                                    }));
-                                },
-                                Err(e) => {
-                                    error!("e: {}", e);
-                                    ctx.stop()
+                            })
+                            .into_actor(self)
+                            .then(|res, act, ctx| {
+                                match res {
+                                    Ok(_) => {
+                                        act.connect_at = Some(Instant::now());
+                                        act.writer.write(Packet::Connack(mqtt3::Connack {
+                                            session_present: false,
+                                            code: mqtt3::ConnectReturnCode::Accepted,
+                                        }));
+                                    }
+                                    Err(e) => {
+                                        error!("e: {}", e);
+                                        ctx.stop()
+                                    }
                                 }
-                            }
-                            fut::ready(())
-                        }).wait(ctx);
+                                fut::ready(())
+                            })
+                            .wait(ctx);
                     }
                     _ => unimplemented!(),
                 }
@@ -86,7 +84,7 @@ impl StreamHandler<Result<Packet, io::Error>> for Session {
             Err(e) => {
                 error!("e {}", e);
                 unimplemented!()
-            },
+            }
         }
     }
 }
@@ -95,7 +93,7 @@ impl actix::io::WriteHandler<io::Error> for Session {}
 
 impl Actor for Session {
     type Context = Context<Self>;
-    fn started(&mut self, ctx: &mut Self::Context) {
+    fn started(&mut self, _ctx: &mut Self::Context) {
         info!("session started");
         self.started_at = Some(Instant::now())
     }

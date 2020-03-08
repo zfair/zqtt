@@ -1,8 +1,8 @@
-use std::io::{self, ErrorKind, Cursor};
 use bytes::BytesMut;
+use std::io::{self, Cursor, ErrorKind};
 use tokio_util::codec::{Decoder, Encoder};
 
-use mqtt3::{self, Packet, MqttWrite, MqttRead};
+use mqtt3::{self, MqttRead, MqttWrite, Packet};
 
 pub struct MqttCodec;
 
@@ -11,7 +11,7 @@ impl Decoder for MqttCodec {
     type Error = io::Error;
 
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        // NOTE: `decode` might be called with `buf.len == 0` when prevous
+        // NOTE: `decode` might be called with `buf.len == 0` when previous
         // decode call read all the bytes in the stream. We should return
         // Ok(None) in those cases or else the `read` call will return
         // Ok(0) => translated to UnexpectedEOF by `byteorder` crate.
@@ -30,8 +30,8 @@ impl Decoder for MqttCodec {
                             ErrorKind::TimedOut | ErrorKind::WouldBlock => return Ok(None),
                             ErrorKind::UnexpectedEof => return Ok(None),
                             _ => {
-                                return Err(io::Error::new(e.kind(), e.to_string()))
-                            },
+                                return Err(io::Error::new(e.kind(), e.to_string()));
+                            }
                         }
                     } else {
                         return Err(io::Error::new(ErrorKind::Other, e.to_string()));
@@ -49,7 +49,7 @@ impl Decoder for MqttCodec {
             return Ok(None);
         }
 
-        buf.split_to(len);
+        let _ = buf.split_to(len);
 
         Ok(Some(packet))
     }
@@ -63,7 +63,7 @@ impl Encoder for MqttCodec {
         let mut stream = Cursor::new(Vec::new());
 
         // TODO: Implement `write_packet` for `&mut BytesMut`
-        if let Err(e) = stream.write_packet(&msg) {
+        if let Err(_) = stream.write_packet(&msg) {
             return Err(io::Error::new(io::ErrorKind::Other, "Unable to encode!"));
         }
 
