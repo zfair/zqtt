@@ -1,5 +1,5 @@
-use env_logger;
 use actix::prelude::*;
+use env_logger;
 use zqtt::broker::server;
 
 #[actix_rt::main]
