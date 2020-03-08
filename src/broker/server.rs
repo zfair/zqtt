@@ -44,9 +44,17 @@ struct TcpConnect(pub TcpStream, pub net::SocketAddr);
 // Message for Session Notify Broker the Session Connect Info
 #[derive(Message)]
 #[rtype(result = "()")]
-struct SessionConnect{
+pub struct SessionConnect{
+    pub session_id: u64,
+    pub session_addr: Addr<session::Session>,
+}
+
+
+// Message for Session Notify Broker the Session Connect Info
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct SessionDisConnect{
     session_id: u64,
-    session_addr: Addr<session::Session>,
 }
 
 #[derive(Message)]

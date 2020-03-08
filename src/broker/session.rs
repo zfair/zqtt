@@ -1,5 +1,7 @@
+use log::{info, trace, warn, error};
 use actix::prelude::*;
 use std::io::{self, ErrorKind, Cursor};
+use std::time::{Instant};
 use tokio::io::WriteHalf;
 use tokio::net::{TcpStream};
 use std::net;
@@ -15,6 +17,10 @@ pub struct Session {
     broker_addr: Addr<server::Broker>,
     socket_addr: net::SocketAddr,
     writer: actix::io::FramedWrite<WriteHalf<TcpStream>, codec::MqttCodec>,
+
+    // Session State
+    started_at: Option<Instant>,
+    connect_at: Option<Instant>,
 }
 
 impl Session{
@@ -30,9 +36,16 @@ impl Session{
             broker_addr: broker_addr,
             socket_addr: socket_addr,
             writer: writer,
+
+            started_at: None,
+            connect_at: None,
         }
     }
 }
+
+#[derive(Message)]
+#[rtype(result = "()")]
+struct MqttConnect(mqtt3::Connect);
 
 /// To use `Framed` with an actor, we have to implement `StreamHandler` trait
 impl StreamHandler<Result<Packet, io::Error>> for Session {
@@ -42,11 +55,38 @@ impl StreamHandler<Result<Packet, io::Error>> for Session {
             Ok(packet) => {
                 match packet {
                     // TODO: implement all mqtt packet type
-                    Packet::Connect(connect) => unimplemented!(),
+                    Packet::Connect(connect) => {
+                        self.broker_addr.send(
+                            server::SessionConnect{
+                                session_id: self.luid,
+                                session_addr: ctx.address(),
+                            },
+                        ).into_actor(
+                            self,
+                        ).then(|res, act, ctx| {
+                            match res {
+                                Ok(_) => {
+                                    act.connect_at = Some(Instant::now());
+                                    act.writer.write(Packet::Connack(mqtt3::Connack{
+                                        session_present: false,
+                                        code: mqtt3::ConnectReturnCode::Accepted,
+                                    }));
+                                },
+                                Err(e) => {
+                                    error!("e: {}", e);
+                                    ctx.stop()
+                                }
+                            }
+                            fut::ready(())
+                        }).wait(ctx);
+                    }
                     _ => unimplemented!(),
                 }
             }
-            _ => unimplemented!(),
+            Err(e) => {
+                error!("e {}", e);
+                unimplemented!()
+            },
         }
     }
 }
@@ -55,4 +95,8 @@ impl actix::io::WriteHandler<io::Error> for Session {}
 
 impl Actor for Session {
     type Context = Context<Self>;
+    fn started(&mut self, ctx: &mut Self::Context) {
+        info!("session started");
+        self.started_at = Some(Instant::now())
+    }
 }

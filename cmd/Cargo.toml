@@ -11,6 +11,8 @@ name = "zqtt-server"
 path = "src/server.rs"
 
 [dependencies]
+log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
+env_logger = "0.7.1"
 actix = "0.10.0-alpha.1"
 actix-rt = "1.0"
 tokio = { version = "0.2.6", default-features = false, features=["rt-core", "rt-util", "io-driver", "io-util", "tcp", "uds", "udp", "time", "signal", "sync"] }

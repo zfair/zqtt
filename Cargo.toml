@@ -10,6 +10,7 @@ categories = ["network-programming"]
 repository = "https://github.com/zfair/zqtt-rs"
 
 [dependencies]
+log = { version = "0.4" }
 actix = "0.10.0-alpha.2"
 actix-web = "2"
 actix-rt = "1"
