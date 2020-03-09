@@ -17,7 +17,7 @@ pub struct Server {
 }
 
 impl Server {
-    pub async fn run(addr: &str) -> Self {
+    pub async fn run(addr: &String) -> Self {
         // instance a local unique id generator for all broker
         let luid_gen = Arc::new(AtomicU64::new(1));
         let broker = Broker::new(addr, luid_gen.clone()).await;
@@ -101,7 +101,7 @@ impl Handler<Stop> for Broker {
 }
 
 impl Broker {
-    pub async fn new(addr: &str, luid_gen: Arc<AtomicU64>) -> Addr<Self> {
+    pub async fn new(addr: &String, luid_gen: Arc<AtomicU64>) -> Addr<Self> {
         let addr = net::SocketAddr::from_str(addr).unwrap();
         let listener = Box::new(TcpListener::bind(&addr).await.unwrap());
 
