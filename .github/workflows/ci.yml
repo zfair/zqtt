@@ -1,10 +1,10 @@
 on: [push]
 
-name: CI
+name: build
 
 jobs:
   build_and_test:
-    name: Rust project
+    name: Build and test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
