@@ -1,6 +1,9 @@
 use bytes::Bytes;
+use actix::prelude::*;
 use std::sync::Arc;
 
+#[derive(Message)]
+#[rtype(result = "()")]
 pub struct Message {
     id: Bytes,
     channel: Bytes,
@@ -16,5 +19,7 @@ pub enum SubscriberType {
 pub trait Subscriber {
     fn id(&self) -> String;
     fn subscriber_type(&self) -> SubscriberType;
-    fn send(&mut self, m: Arc<Message>);
+    fn subscriber_addr(&self) -> Option<Addr<Self>>
+    where
+        Self: Actor;
 }

@@ -11,10 +11,12 @@ use tokio::net::TcpStream;
 
 use super::codec;
 use super::server;
+use super::message;
 
 pub struct Session {
     // store broker addr
     luid: u64,
+    self_addr: Option<Addr<Self>>,
     broker_addr: Addr<server::Broker>,
     socket_addr: net::SocketAddr,
     writer: actix::io::FramedWrite<WriteHalf<TcpStream>, codec::MqttCodec>,
@@ -36,7 +38,7 @@ impl Session {
             broker_addr,
             socket_addr,
             writer,
-
+            self_addr: None,
             started_at: None,
             connect_at: None,
         }
@@ -110,8 +112,23 @@ impl actix::io::WriteHandler<io::Error> for Session {}
 impl Actor for Session {
     type Context = Context<Self>;
 
-    fn started(&mut self, _ctx: &mut Self::Context) {
+    fn started(&mut self, ctx: &mut Self::Context) {
         info!("session started");
-        self.started_at = Some(Instant::now())
+        self.self_addr = Some(ctx.address());
+        self.started_at = Some(Instant::now());
+    }
+}
+
+impl message::Subscriber for Session {
+    fn id(&self) -> String {
+        self.luid.to_string()
+    }
+
+    fn subscriber_type(&self) -> message::SubscriberType {
+        message::SubscriberType::Direct
+    }
+
+    fn subscriber_addr(&self) -> Option<Addr<Self>> {
+        self.self_addr.clone()
     }
 }
