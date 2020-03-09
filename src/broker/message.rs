@@ -1,16 +1,16 @@
-use std::sync::Arc;
 use bytes::Bytes;
+use std::sync::Arc;
 
 pub struct Message {
-    id:  Bytes,
+    id: Bytes,
     channel: Bytes,
     payload: Bytes,
     ttl: u32,
 }
 
 pub enum SubscriberType {
-    SubscriberDirect,
-    SubscriberRemote,
+    Direct,
+    Remote,
 }
 
 pub trait Subscriber {

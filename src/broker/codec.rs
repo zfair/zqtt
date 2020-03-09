@@ -1,8 +1,9 @@
 use bytes::BytesMut;
+use mqtt3::{self, MqttRead, MqttWrite, Packet};
 use std::io::{self, Cursor, ErrorKind};
 use tokio_util::codec::{Decoder, Encoder};
 
-use mqtt3::{self, MqttRead, MqttWrite, Packet};
+const MQTT_MIN_HEADER_SIZE: usize = 2;
 
 pub struct MqttCodec;
 
@@ -12,12 +13,14 @@ impl Decoder for MqttCodec {
 
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         // NOTE: `decode` might be called with `buf.len == 0` when previous
-        // decode call read all the bytes in the stream. We should return
-        // Ok(None) in those cases or else the `read` call will return
-        // Ok(0) => translated to UnexpectedEOF by `byteorder` crate.
-        // `read` call Ok(0) happens when buffer specified was 0 bytes in len
-        // https://doc.rust-lang.org/std/io/trait.Read.html#tymethod.read
-        if buf.len() < 2 {
+        // `decode` reads all the bytes in the stream.  We should return
+        // `Ok(None)` in those cases or else the `read` call will return
+        // `Ok(0)` (translated to `UnexpectedEOF`) by `byteorder` crate.
+        // `read` returning `Ok(0)` happens when the specified buffer has 0
+        // bytes in len.
+        //
+        // See: https://doc.rust-lang.org/std/io/trait.Read.html#tymethod.read
+        if buf.len() < MQTT_MIN_HEADER_SIZE {
             return Ok(None);
         }
 
@@ -25,26 +28,26 @@ impl Decoder for MqttCodec {
             let mut buf_ref = buf.as_ref();
             match buf_ref.read_packet_with_len() {
                 Err(e) => {
-                    if let mqtt3::Error::Io(e) = e {
+                    let errmsg = e.to_string();
+                    return if let mqtt3::Error::Io(e) = e {
                         match e.kind() {
-                            ErrorKind::TimedOut | ErrorKind::WouldBlock => return Ok(None),
-                            ErrorKind::UnexpectedEof => return Ok(None),
-                            _ => {
-                                return Err(io::Error::new(e.kind(), e.to_string()));
-                            }
+                            ErrorKind::TimedOut
+                            | ErrorKind::WouldBlock
+                            | ErrorKind::UnexpectedEof => Ok(None),
+                            _ => Err(Self::Error::new(e.kind(), errmsg)),
                         }
                     } else {
-                        return Err(io::Error::new(ErrorKind::Other, e.to_string()));
-                    }
+                        Err(Self::Error::new(ErrorKind::Other, errmsg))
+                    };
                 }
                 Ok(v) => v,
             }
         };
 
-        // NOTE: It's possible that `decode` got called before `buf` has full bytes
-        // necessary to frame raw bytes into a packet. In that case return Ok(None)
-        // and the next time decode` gets called, there will be more bytes in `buf`,
-        // hopefully enough to frame the packet
+        // NOTE: It's possible that `decode` is called before `buf` is full
+        // enough to frame the raw bytes in a packet.  In that case, we return
+        // `Ok(None)` for the next `decode` is called, there will be more
+        // bytes in `buf`, hopefully enough to frame the packet.
         if buf.len() < len {
             return Ok(None);
         }
@@ -63,8 +66,8 @@ impl Encoder for MqttCodec {
         let mut stream = Cursor::new(Vec::new());
 
         // TODO: Implement `write_packet` for `&mut BytesMut`
-        if let Err(_) = stream.write_packet(&msg) {
-            return Err(io::Error::new(io::ErrorKind::Other, "Unable to encode!"));
+        if let Err(e) = stream.write_packet(&msg) {
+            return Err(Self::Error::new(io::ErrorKind::Other, e));
         }
 
         buf.extend(stream.get_ref());
