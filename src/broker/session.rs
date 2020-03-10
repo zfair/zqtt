@@ -10,35 +10,44 @@ use tokio::net::TcpStream;
 use super::codec;
 use super::server;
 use super::message;
+use super::util::UID;
 
 pub struct Session {
-    // store broker addr
-    luid: u64,
-    self_addr: Option<Addr<Self>>,
+    /// Local UID of this session.
+    uid: UID,
+
+    /// Actor address of this session.
+    addr: Option<Addr<Self>>,
+
+    /// Actor address of the corresponding broker.
     broker_addr: Addr<server::Broker>,
-    socket_addr: net::SocketAddr,
+
+    /// Session's network address.
+    net_addr: net::SocketAddr,
+
+    /// Framed writer for MQTT packets.
     writer: actix::io::FramedWrite<WriteHalf<TcpStream>, codec::MqttCodec>,
 
-    // Session State
+    /// Session timestamps.
     started_at: Option<Instant>,
     connect_at: Option<Instant>,
 }
 
 impl Session {
     pub fn new(
-        luid: u64,
+        uid: UID,
         broker_addr: Addr<server::Broker>,
         socket_addr: net::SocketAddr,
         writer: actix::io::FramedWrite<WriteHalf<TcpStream>, codec::MqttCodec>,
     ) -> Session {
         Session {
-            luid,
-            self_addr: None,
+            uid,
+            addr: None,
             broker_addr,
-            socket_addr,
+            net_addr: socket_addr,
             writer,
             started_at: None,
-            connect_at: None
+            connect_at: None,
         }
     }
 
@@ -46,11 +55,11 @@ impl Session {
         &mut self,
         _conn: &Connect,
         ctx: &mut <Self as Actor>::Context,
-    ) -> impl ActorFuture<Output = Result<Packet, MailboxError>, Actor = Self> {
+    ) -> impl ActorFuture<Output=Result<Packet, MailboxError>, Actor=Self> {
         let f = self
             .broker_addr
             .send(server::SessionConnect {
-                session_id: self.luid,
+                session_id: self.uid,
                 session_addr: ctx.address(),
             })
             .into_actor(self)
@@ -95,7 +104,7 @@ impl StreamHandler<Result<Packet, io::Error>> for Session {
                     }
                     fut::ready(())
                 })
-                .wait(ctx)
+                    .wait(ctx)
             }
             Err(e) => {
                 error!("error: {}", e);
@@ -112,21 +121,21 @@ impl Actor for Session {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         info!("session started");
-        self.self_addr = Some(ctx.address());
+        self.addr = Some(ctx.address());
         self.started_at = Some(Instant::now());
     }
 }
 
 impl message::Subscriber for Session {
     fn id(&self) -> String {
-        self.luid.to_string()
+        self.uid.to_string()
     }
 
-    fn location(&self) -> message::SubLocation {
-        message::SubLocation::Local
+    fn kind(&self) -> message::SubscriberKind {
+        message::SubscriberKind::Local
     }
 
     fn addr(&self) -> Option<Addr<Self>> {
-        self.self_addr.clone()
+        self.addr.clone()
     }
 }

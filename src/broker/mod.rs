@@ -1,4 +1,6 @@
+pub mod server;
+
 mod codec;
 mod message;
-pub mod server;
 mod session;
+mod util;

@@ -1,32 +1,34 @@
-use super::codec;
-use super::session;
 use actix::prelude::*;
 use futures::StreamExt;
 use std::collections::BTreeMap;
 use std::net;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_util::codec::FramedRead;
 
+use crate::broker;
+use broker::codec;
+use broker::session;
+use broker::util::{UID, UidGen};
+
 pub struct Server {
-    // local unique id generator for this broker
-    luid_gen: Arc<AtomicU64>,
+    /// Local UID generator for this server.
+    uid_gen: UidGen,
+
+    /// Actor address of the corresponding broker.
     broker: Addr<Broker>,
 }
 
 impl Server {
     pub async fn run(addr: &String) -> Self {
-        // instance a local unique id generator for all broker
-        let luid_gen = Arc::new(AtomicU64::new(1));
-        let broker = Broker::new(addr, luid_gen.clone()).await;
+        // Instantiate a local unique ID generator for all brokers.
+        let uid_gen = UidGen::new();
+        let broker = Broker::new(addr, uid_gen.clone()).await;
 
-        Server { luid_gen, broker }
+        Server { uid_gen, broker }
     }
 
     pub async fn stop(&self) -> Result<(), MailboxError> {
-        // send stop message to broker
         self.broker.send(Stop()).await
     }
 }
@@ -39,7 +41,7 @@ struct TcpConnect(pub TcpStream, pub net::SocketAddr);
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct SessionConnect {
-    pub session_id: u64,
+    pub session_id: UID,
     pub session_addr: Addr<session::Session>,
 }
 
@@ -47,7 +49,7 @@ pub struct SessionConnect {
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct SessionDisConnect {
-    session_id: u64,
+    session_id: UID,
 }
 
 #[derive(Message)]
@@ -55,10 +57,14 @@ pub struct SessionDisConnect {
 struct Stop();
 
 pub struct Broker {
-    addr: std::net::SocketAddr,
-    luid_gen: Arc<AtomicU64>,
-    // store all clients
-    sessions: BTreeMap<u64, Addr<session::Session>>,
+    /// Network address for this broker.
+    net_addr: std::net::SocketAddr,
+
+    /// Local UID generator.
+    uid_gen: UidGen,
+
+    /// All client sessions in this broker.
+    sessions: BTreeMap<UID, Addr<session::Session>>,
 }
 
 impl Actor for Broker {
@@ -70,12 +76,12 @@ impl Handler<TcpConnect> for Broker {
 
     fn handle(&mut self, msg: TcpConnect, ctx: &mut Context<Self>) {
         let broker_addr = ctx.address();
-        let luid = self.luid_gen.fetch_add(1, Ordering::SeqCst);
+        let uid = self.uid_gen.allocate();
         session::Session::create(move |session_ctx| {
             let (r, w) = tokio::io::split(msg.0);
             session::Session::add_stream(FramedRead::new(r, codec::MqttCodec), session_ctx);
             session::Session::new(
-                luid,
+                uid,
                 broker_addr,
                 msg.1,
                 actix::io::FramedWrite::new(w, codec::MqttCodec, session_ctx),
@@ -101,9 +107,9 @@ impl Handler<Stop> for Broker {
 }
 
 impl Broker {
-    pub async fn new(addr: &String, luid_gen: Arc<AtomicU64>) -> Addr<Self> {
-        let addr = net::SocketAddr::from_str(addr).unwrap();
-        let listener = Box::new(TcpListener::bind(&addr).await.unwrap());
+    pub async fn new(addr: &String, uid_gen: UidGen) -> Addr<Self> {
+        let net_addr = net::SocketAddr::from_str(addr).unwrap();
+        let listener = Box::new(TcpListener::bind(&net_addr).await.unwrap());
 
         Broker::create(move |ctx| {
             // add_message_stream require a static lifetime stream
@@ -115,8 +121,8 @@ impl Broker {
             });
             ctx.add_message_stream(tcp_connect);
             Broker {
-                addr,
-                luid_gen,
+                net_addr,
+                uid_gen,
                 sessions: BTreeMap::new(),
             }
         })

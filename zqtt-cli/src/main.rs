@@ -1,5 +1,4 @@
 use actix::prelude::*;
-use env_logger;
 use structopt::StructOpt;
 use zqtt::broker::server;
 
