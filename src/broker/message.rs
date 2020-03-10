@@ -11,15 +11,16 @@ pub struct Message {
     ttl: u32,
 }
 
-pub enum SubscriberType {
-    Direct,
+/// The location of the subscriber, outside the node or just on the node.
+pub enum SubLocation {
+    Local,
     Remote,
 }
 
 pub trait Subscriber {
     fn id(&self) -> String;
-    fn subscriber_type(&self) -> SubscriberType;
-    fn subscriber_addr(&self) -> Option<Addr<Self>>
+    fn location(&self) -> SubLocation;
+    fn addr(&self) -> Option<Addr<Self>>
     where
         Self: Actor;
 }

@@ -1,10 +1,8 @@
-use actix::fut::{FutureWrap, IntoActorFuture};
 use actix::prelude::*;
 use log::{error, info};
 use mqtt3::{self, Connack, Connect, ConnectReturnCode, Packet};
 use std::io;
 use std::net;
-use std::pin::Pin;
 use std::time::Instant;
 use tokio::io::WriteHalf;
 use tokio::net::TcpStream;
@@ -35,12 +33,12 @@ impl Session {
     ) -> Session {
         Session {
             luid,
+            self_addr: None,
             broker_addr,
             socket_addr,
             writer,
-            self_addr: None,
             started_at: None,
-            connect_at: None,
+            connect_at: None
         }
     }
 
@@ -124,11 +122,11 @@ impl message::Subscriber for Session {
         self.luid.to_string()
     }
 
-    fn subscriber_type(&self) -> message::SubscriberType {
-        message::SubscriberType::Direct
+    fn location(&self) -> message::SubLocation {
+        message::SubLocation::Local
     }
 
-    fn subscriber_addr(&self) -> Option<Addr<Self>> {
+    fn addr(&self) -> Option<Addr<Self>> {
         self.self_addr.clone()
     }
 }
