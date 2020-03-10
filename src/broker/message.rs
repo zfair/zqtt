@@ -1,5 +1,5 @@
-use bytes::Bytes;
 use actix::prelude::*;
+use bytes::Bytes;
 
 #[derive(Message)]
 #[rtype(result = "()")]

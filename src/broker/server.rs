@@ -9,7 +9,7 @@ use tokio_util::codec::FramedRead;
 use crate::broker;
 use broker::codec;
 use broker::session;
-use broker::util::{UID, UidGen};
+use broker::util::{UidGen, UID};
 
 pub struct Server {
     /// Local UID generator for this server.

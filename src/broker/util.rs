@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 /// Type for the unique ID.
 pub type UID = u64;
@@ -13,7 +13,9 @@ pub struct UidGen {
 impl UidGen {
     /// Create a new unique ID generator.
     pub fn new() -> Self {
-        UidGen { gen: Arc::new(AtomicU64::new(0)) }
+        UidGen {
+            gen: Arc::new(AtomicU64::new(1)),
+        }
     }
 
     /// Allocate a new UID.
