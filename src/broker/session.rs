@@ -7,10 +7,8 @@ use std::time::Instant;
 use tokio::io::WriteHalf;
 use tokio::net::TcpStream;
 
-use super::codec;
-use super::message;
-use super::server;
-use super::util::UID;
+use crate::broker::{codec, message, server};
+use crate::util::uid::UID;
 
 pub struct Session {
     /// Local UID of this session.
@@ -55,7 +53,7 @@ impl Session {
         &mut self,
         _conn: &Connect,
         ctx: &mut <Self as Actor>::Context,
-    ) -> impl ActorFuture<Output = Result<Packet, MailboxError>, Actor = Self> {
+    ) -> impl ActorFuture<Output=Result<Packet, MailboxError>, Actor=Self> {
         let f = self
             .broker_addr
             .send(server::SessionConnect {
@@ -104,7 +102,7 @@ impl StreamHandler<Result<Packet, io::Error>> for Session {
                     }
                     fut::ready(())
                 })
-                .wait(ctx)
+                    .wait(ctx)
             }
             Err(e) => {
                 error!("error: {}", e);

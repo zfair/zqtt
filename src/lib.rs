@@ -1,5 +1,7 @@
 pub mod broker;
 
+mod util;
+
 #[cfg(test)]
 mod tests {
     #[test]

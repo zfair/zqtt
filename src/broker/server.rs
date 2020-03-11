@@ -6,10 +6,8 @@ use std::str::FromStr;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_util::codec::FramedRead;
 
-use crate::broker;
-use broker::codec;
-use broker::session;
-use broker::util::{UidGen, UID};
+use crate::broker::{codec, session};
+use crate::util::uid::{UidGen, UID};
 
 pub struct Server {
     /// Local UID generator for this server.
