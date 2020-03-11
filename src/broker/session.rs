@@ -134,7 +134,7 @@ impl message::Subscriber for Session {
         message::SubscriberKind::Local
     }
 
-    fn addr(&self) -> Option<Addr<Self>> {
-        self.addr.clone()
+    fn send(&self, m: &message::Message) -> Result<(), message::SubscribeError> {
+        Ok(())
     }
 }
