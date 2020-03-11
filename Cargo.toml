@@ -18,6 +18,8 @@ tokio-util = { version = "0.2", features = ["full"] }
 futures = "0.3.4"
 mqtt3 = { git = "https://github.com/tekjar/mqtt3" }
 bytes = { version = "0.5", features = ["serde"] }
+regex = "1"
+lazy_static = "1.4.0"
 
 [dependencies.tokio]
 version = "0.2.6"
