@@ -66,7 +66,7 @@ impl TopicParser {
 
     /// Tokenize the subscription string into `TopicNode`s for further parsing.
     fn scan(topic: &String) -> Result<Vec<TopicNode>, &'static str> {
-        let mut tokens = topic.split('/').map(move |tk| match tk {
+        let tokens = topic.split('/').map(move |tk| match tk {
             "+" => Some(TopicNode::SingleWildcard),
             "#" => Some(TopicNode::MultiWildcard),
             _ if IDENT.is_match(tk) => Some(TopicNode::Name(tk.to_string())),

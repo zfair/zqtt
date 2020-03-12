@@ -1,14 +1,14 @@
 use actix::prelude::*;
 use bytes::Bytes;
-use std::ptr::NonNull;
-use std::error;
-use std::fmt;
-use std::rc::Rc;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::error;
+use std::fmt;
+use std::ptr::NonNull;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
-pub enum SubscribeError{}
+pub enum SubscribeError {}
 impl fmt::Display for SubscribeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self)
@@ -16,7 +16,6 @@ impl fmt::Display for SubscribeError {
 }
 
 impl error::Error for SubscribeError {}
-
 
 #[derive(Debug, Clone, Message)]
 #[rtype(result = "()")]
@@ -47,7 +46,7 @@ struct Node {
 
 impl Default for Node {
     fn default() -> Self {
-        Node{
+        Node {
             word: None,
             parent: None,
             children: BTreeMap::default(),
@@ -64,12 +63,16 @@ pub struct SubTrie {
 impl SubTrie {
     fn new() -> Self {
         let boxed_node = Box::new(Node::default());
-        SubTrie{
+        SubTrie {
             root: Some(Box::into_raw_non_null(boxed_node)),
         }
     }
 
-    fn subscribe(&mut self, ssid: &Vec<u64>, subscriber: Rc<dyn Subscriber>) -> Result<(), SubscribeError> {
+    fn subscribe(
+        &mut self,
+        ssid: &Vec<u64>,
+        subscriber: Rc<dyn Subscriber>,
+    ) -> Result<(), SubscribeError> {
         let mut cur = self.root;
         for word in ssid.iter() {
             match cur {
@@ -80,9 +83,7 @@ impl SubTrie {
                     }
                     let next = child.children.get_mut(word);
                     match next {
-                        Some(x) => {
-                            cur = *x
-                        },
+                        Some(x) => cur = *x,
                         None => {
                             let mut new_node = Box::into_raw_non_null(Box::new(Node::default()));
                             unsafe {
@@ -100,7 +101,10 @@ impl SubTrie {
             }
         }
         unsafe {
-            cur.unwrap().as_mut().subs.insert(subscriber.id(), subscriber.clone());
+            cur.unwrap()
+                .as_mut()
+                .subs
+                .insert(subscriber.id(), subscriber.to_owned());
         }
         Ok(())
     }
@@ -114,16 +118,14 @@ struct TestSubscriber {
 #[cfg(test)]
 impl TestSubscriber {
     fn new(id: String) -> Self {
-        TestSubscriber{
-            id: id,
-        }
+        TestSubscriber { id: id }
     }
 }
 
 #[cfg(test)]
 impl Subscriber for TestSubscriber {
     fn id(&self) -> String {
-        self.id.clone()
+        self.id.to_owned()
     }
     fn kind(&self) -> SubscriberKind {
         SubscriberKind::Local
@@ -143,11 +145,17 @@ fn test_subscribe() {
     let ssid_test3: Vec<u64> = (0..11).collect();
     let subscriber_test3 = Rc::new(TestSubscriber::new("Test3".to_string()));
 
-    sub_trie.subscribe(&ssid_test, subscriber_test.clone()).unwrap();
-    sub_trie.subscribe(&ssid_test2, subscriber_test2.clone()).unwrap();
-    sub_trie.subscribe(&ssid_test3, subscriber_test3.clone()).unwrap();
+    sub_trie
+        .subscribe(&ssid_test, subscriber_test.to_owned())
+        .unwrap();
+    sub_trie
+        .subscribe(&ssid_test2, subscriber_test2.to_owned())
+        .unwrap();
+    sub_trie
+        .subscribe(&ssid_test3, subscriber_test3.to_owned())
+        .unwrap();
 
-    {    
+    {
         let mut cur = sub_trie.root;
         for x in ssid_test {
             unsafe {
@@ -157,13 +165,19 @@ fn test_subscribe() {
         }
 
         unsafe {
-            assert_eq!(cur.unwrap().as_mut().subs["Test"].id(), subscriber_test.id());
-            assert_eq!(cur.unwrap().as_mut().subs["Test2"].id(), subscriber_test2.id());
+            assert_eq!(
+                cur.unwrap().as_mut().subs["Test"].id(),
+                subscriber_test.id()
+            );
+            assert_eq!(
+                cur.unwrap().as_mut().subs["Test2"].id(),
+                subscriber_test2.id()
+            );
             assert_eq!(cur.unwrap().as_mut().subs.len(), 2);
         }
     }
 
-    {    
+    {
         let mut cur = sub_trie.root;
         for x in ssid_test3 {
             unsafe {
@@ -172,11 +186,23 @@ fn test_subscribe() {
         }
 
         unsafe {
-            assert_eq!(cur.unwrap().as_mut().subs["Test3"].id(), subscriber_test3.id());
+            assert_eq!(
+                cur.unwrap().as_mut().subs["Test3"].id(),
+                subscriber_test3.id()
+            );
             assert_eq!(cur.unwrap().as_mut().subs.len(), 1);
-            assert_eq!(cur.unwrap().as_mut().parent.unwrap().as_mut().subs["Test"].id(), subscriber_test.id());
-            assert_eq!(cur.unwrap().as_mut().parent.unwrap().as_mut().subs["Test2"].id(), subscriber_test2.id());
-            assert_eq!(cur.unwrap().as_mut().parent.unwrap().as_mut().subs["Test2"].id(), subscriber_test2.id());
+            assert_eq!(
+                cur.unwrap().as_mut().parent.unwrap().as_mut().subs["Test"].id(),
+                subscriber_test.id()
+            );
+            assert_eq!(
+                cur.unwrap().as_mut().parent.unwrap().as_mut().subs["Test2"].id(),
+                subscriber_test2.id()
+            );
+            assert_eq!(
+                cur.unwrap().as_mut().parent.unwrap().as_mut().subs["Test2"].id(),
+                subscriber_test2.id()
+            );
             assert_eq!(cur.unwrap().as_mut().parent.unwrap().as_mut().subs.len(), 2);
         }
     }

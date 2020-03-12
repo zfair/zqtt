@@ -134,7 +134,7 @@ impl message::Subscriber for Session {
         message::SubscriberKind::Local
     }
 
-    fn send(&self, m: &message::Message) -> Result<(), message::SubscribeError> {
+    fn send(&self, _m: &message::Message) -> Result<(), message::SubscribeError> {
         Ok(())
     }
 }

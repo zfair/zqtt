@@ -22,7 +22,7 @@ impl Server {
     pub async fn run(addr: &String) -> Self {
         // Instantiate a local unique ID generator for all brokers.
         let uid_gen = UidGen::new();
-        let broker = Broker::new(addr, uid_gen.clone()).await;
+        let broker = Broker::new(addr, uid_gen.to_owned()).await;
 
         Server { uid_gen, broker }
     }
