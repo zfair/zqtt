@@ -7,9 +7,19 @@ use std::fmt;
 use std::ptr::NonNull;
 use std::rc::Rc;
 
+/// Channel ID, namely the hash of a topic channel.
+type ChanID = u64;
+
+/// Subscription ID, a list of [ChanID]s.
+type SubsID = Vec<ChanID>;
+
+// hash_map::DefaultHasher hash value of “+”
+const SINGLE_WILDCARD: ChanID = 7874756943448743542;
+// hash_map::DefaultHasher hash value of "#"
+const MULTIPLE_WILDCARD: ChanID = 5913179443045906980;
+
 #[derive(Debug, Clone)]
 pub enum SubscribeError {}
-
 impl fmt::Display for SubscribeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self)
@@ -32,6 +42,13 @@ pub enum SubscriberKind {
     Remote,
 }
 
+type Subscribers = HashMap<String, Rc<dyn Subscriber>>;
+fn subscribers_add_range(dst: &mut Subscribers, from: &Subscribers) {
+    for (key, val) in from.iter() {
+        dst.insert(key.to_string(), val.clone());
+    }
+}
+
 pub trait Subscriber {
     fn id(&self) -> String;
     fn kind(&self) -> SubscriberKind;
@@ -42,7 +59,7 @@ struct Node {
     chan_id: Option<ChanID>,
     parent: Option<NonNull<Node>>,
     children: BTreeMap<ChanID, Option<NonNull<Node>>>,
-    subs: HashMap<String, Rc<dyn Subscriber>>,
+    subs: Subscribers,
 }
 
 impl Default for Node {
@@ -55,12 +72,6 @@ impl Default for Node {
         }
     }
 }
-
-/// Channel ID, namely the hash of a topic channel.
-type ChanID = u64;
-
-/// Subscription ID, a list of [ChanID]s.
-type SubsID = Vec<ChanID>;
 
 #[derive(Debug)]
 pub struct SubTrie {
@@ -75,7 +86,7 @@ impl SubTrie {
         }
     }
 
-    fn subscribe(
+    pub fn subscribe(
         &mut self,
         subs_id: &SubsID,
         subscriber: Rc<dyn Subscriber>,
@@ -110,108 +121,195 @@ impl SubTrie {
             cur.unwrap()
                 .as_mut()
                 .subs
-                .insert(subscriber.id(), subscriber.to_owned());
+                .insert(subscriber.id(), subscriber.clone());
         }
+        Ok(())
+    }
+
+    pub fn lookup(&self, ssid: &Vec<u64>) -> Result<Subscribers, SubscribeError> {
+        let mut subs = Subscribers::new();
+        self.slookup(&self.root, ssid.as_slice(), &mut subs)?;
+        Ok(subs)
+    }
+
+    fn slookup(
+        &self,
+        node: &Option<NonNull<Node>>,
+        ssid: &[u64],
+        subs: &mut Subscribers,
+    ) -> Result<(), SubscribeError> {
+        if subs.len() == 0 {
+            // find match node
+            unsafe {
+                let this_node = &*node.unwrap().as_ptr();
+                let s = &this_node.subs;
+                subscribers_add_range(subs, s);
+                // search MULTIPLE_WILDCARD at last level
+                if let Some(mwcn) = this_node.children.get(&MULTIPLE_WILDCARD) {
+                    subscribers_add_range(subs, &(*mwcn.unwrap().as_ptr()).subs);
+                }
+            }
+        }
+
+        let this_node;
+        unsafe {
+            this_node = &*node.unwrap().as_ptr();
+        }
+
+        if let Some(mwcn) = this_node.children.get(&MULTIPLE_WILDCARD) {
+            unsafe {
+                subscribers_add_range(subs, &(*mwcn.unwrap().as_ptr()).subs);
+            }
+        }
+        // dfs lookup single wildcard
+        if let Some(swcn) = this_node.children.get(&SINGLE_WILDCARD) {
+            self.slookup(swcn, &ssid[1..ssid.len()], subs)?;
+        }
+        // lookup match
+        if let Some(matchn) = this_node.children.get(&ssid[0]) {
+            self.slookup(matchn, &ssid[1..ssid.len()], subs)?;
+        }
+
         Ok(())
     }
 }
 
 #[cfg(test)]
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
+#[cfg(test)]
 mod test {
     use super::*;
 
-    struct TestSubscriber {
-        id: String,
+#[cfg(test)]
+struct TestSubscriber {
+    id: String,
+}
+
+#[cfg(test)]
+impl TestSubscriber {
+    fn new(id: String) -> Self {
+        TestSubscriber { id: id }
     }
+}
 
-    impl TestSubscriber {
-        fn new(id: String) -> Self {
-            TestSubscriber { id }
-        }
+#[cfg(test)]
+impl Subscriber for TestSubscriber {
+    fn id(&self) -> String {
+        self.id.to_owned()
     }
-
-    impl Subscriber for TestSubscriber {
-        fn id(&self) -> String {
-            self.id.to_owned()
-        }
-        fn kind(&self) -> SubscriberKind {
-            SubscriberKind::Local
-        }
-        fn send(&self, m: &super::Message) -> Result<(), SubscribeError> {
-            Ok(())
-        }
+    fn kind(&self) -> SubscriberKind {
+        SubscriberKind::Local
     }
+    fn send(&self, m: &super::Message) -> Result<(), SubscribeError> {
+        Ok(())
+    }
+}
 
-    #[test]
-    fn test_subscribe() {
-        let mut sub_trie = SubTrie::new();
-        let subs_id_test = (0..10).collect();
-        let subscriber_test = Rc::new(TestSubscriber::new("Test".to_string()));
-        let subs_id_test2 = (0..10).collect();
-        let subscriber_test2 = Rc::new(TestSubscriber::new("Test2".to_string()));
-        let subs_id_test3 = (0..11).collect();
-        let subscriber_test3 = Rc::new(TestSubscriber::new("Test3".to_string()));
+#[cfg(test)]
+fn parse_topic(topic: String) -> Vec<u64> {
+    let parts: Vec<&str> = topic.split("/").collect();
+    let mut result = Vec::new();
+    for part in parts.iter() {
+        let mut hasher = DefaultHasher::new();
+        part.hash(&mut hasher);
+        let p = hasher.finish();
+        result.push(p);
+    }
+    result
+}
 
-        sub_trie
-            .subscribe(&subs_id_test, subscriber_test.to_owned())
-            .unwrap();
-        sub_trie
-            .subscribe(&subs_id_test2, subscriber_test2.to_owned())
-            .unwrap();
-        sub_trie
-            .subscribe(&subs_id_test3, subscriber_test3.to_owned())
-            .unwrap();
+#[test]
+fn test_subscribe() {
+    let mut sub_trie = SubTrie::new();
+    let ssid_test: Vec<u64> = (0..10).collect();
+    let subscriber_test = Rc::new(TestSubscriber::new("Test".to_string()));
+    let ssid_test2: Vec<u64> = (0..10).collect();
+    let subscriber_test2 = Rc::new(TestSubscriber::new("Test2".to_string()));
+    let ssid_test3: Vec<u64> = (0..11).collect();
+    let subscriber_test3 = Rc::new(TestSubscriber::new("Test3".to_string()));
 
-        {
-            let mut cur = sub_trie.root;
-            for x in subs_id_test {
-                unsafe {
-                    cur = *cur.unwrap().as_mut().children.get(&x).unwrap();
-                    assert_eq!(cur.unwrap().as_mut().chan_id, Some(x));
-                }
-            }
+    sub_trie
+        .subscribe(&ssid_test, subscriber_test.to_owned())
+        .unwrap();
+    sub_trie
+        .subscribe(&ssid_test2, subscriber_test2.to_owned())
+        .unwrap();
+    sub_trie
+        .subscribe(&ssid_test3, subscriber_test3.to_owned())
+        .unwrap();
 
+    {
+        let mut cur = sub_trie.root;
+        for x in ssid_test {
             unsafe {
-                assert_eq!(
-                    cur.unwrap().as_mut().subs["Test"].id(),
-                    subscriber_test.id()
-                );
-                assert_eq!(
-                    cur.unwrap().as_mut().subs["Test2"].id(),
-                    subscriber_test2.id()
-                );
-                assert_eq!(cur.unwrap().as_mut().subs.len(), 2);
+                cur = *cur.unwrap().as_mut().children.get(&x).unwrap();
+                assert_eq!(cur.unwrap().as_mut().chan_id, Some(x));
             }
         }
 
-        {
-            let mut cur = sub_trie.root;
-            for x in subs_id_test3 {
-                unsafe {
-                    cur = *cur.unwrap().as_mut().children.get(&x).unwrap();
-                }
-            }
-
-            unsafe {
-                assert_eq!(
-                    cur.unwrap().as_mut().subs["Test3"].id(),
-                    subscriber_test3.id()
-                );
-                assert_eq!(cur.unwrap().as_mut().subs.len(), 1);
-                assert_eq!(
-                    cur.unwrap().as_mut().parent.unwrap().as_mut().subs["Test"].id(),
-                    subscriber_test.id()
-                );
-                assert_eq!(
-                    cur.unwrap().as_mut().parent.unwrap().as_mut().subs["Test2"].id(),
-                    subscriber_test2.id()
-                );
-                assert_eq!(
-                    cur.unwrap().as_mut().parent.unwrap().as_mut().subs["Test2"].id(),
-                    subscriber_test2.id()
-                );
-                assert_eq!(cur.unwrap().as_mut().parent.unwrap().as_mut().subs.len(), 2);
-            }
+        unsafe {
+            assert_eq!(
+                cur.unwrap().as_mut().subs["Test"].id(),
+                subscriber_test.id()
+            );
+            assert_eq!(
+                cur.unwrap().as_mut().subs["Test2"].id(),
+                subscriber_test2.id()
+            );
+            assert_eq!(cur.unwrap().as_mut().subs.len(), 2);
         }
     }
+
+    {
+        let mut cur = sub_trie.root;
+        for x in ssid_test3 {
+            unsafe {
+                cur = *cur.unwrap().as_mut().children.get(&x).unwrap();
+            }
+        }
+
+        unsafe {
+            assert_eq!(
+                cur.unwrap().as_mut().subs["Test3"].id(),
+                subscriber_test3.id()
+            );
+            assert_eq!(cur.unwrap().as_mut().subs.len(), 1);
+            assert_eq!(
+                cur.unwrap().as_mut().parent.unwrap().as_mut().subs["Test"].id(),
+                subscriber_test.id()
+            );
+            assert_eq!(
+                cur.unwrap().as_mut().parent.unwrap().as_mut().subs["Test2"].id(),
+                subscriber_test2.id()
+            );
+            assert_eq!(
+                cur.unwrap().as_mut().parent.unwrap().as_mut().subs["Test2"].id(),
+                subscriber_test2.id()
+            );
+            assert_eq!(cur.unwrap().as_mut().parent.unwrap().as_mut().subs.len(), 2);
+        }
+    }
+}
+
+#[test]
+fn test_lookup() {
+    let topics = vec![
+        "#",
+        "+",
+        "hello/#",
+        "hello/+",
+        "hello/+/zqtt",
+        "hello/mqtt/+",
+        "hello/mqtt/zqtt",
+        "hello/mqtt/+/+",
+        "hello/mqtt/+/#",
+        "hello/mqtt/+/foo",
+        "hello/mqtt/zqtt/foo",
+    ];
+
+    let lookups = vec!["a", "a/b", "x", "x/y", "hello/world", "hello/world/c"];
+    // TODO: add lookup test casex
+}
 }
