@@ -7,13 +7,6 @@ lazy_static! {
 
 /// Subscription topic.
 ///
-/// Some example topics:
-///
-/// - `a/b`
-/// - `a/b/#`
-/// - `a/+/b/#`
-/// - `a/+/+/b/#`
-///
 /// ## Syntax
 ///
 /// ```antlr
@@ -43,7 +36,7 @@ enum TopicNode {
     SingleWildcard,
 
     /// The `#` wildcard, only at the end of the topic string.
-    MultipleWildcard,
+    MultiWildcard,
 }
 
 impl Topic {
@@ -56,12 +49,14 @@ impl Topic {
     }
 }
 
+/// Parse for the topic string.
 struct TopicParser {
     pos: usize,
     tokens: Vec<TopicNode>,
 }
 
 impl TopicParser {
+    /// Create a new topic string parser.
     fn new(topic: &String) -> Result<Self, &'static str> {
         match Self::scan(topic) {
             Ok(tokens) => Ok(Self { pos: 0, tokens }),
@@ -71,24 +66,24 @@ impl TopicParser {
 
     /// Tokenize the subscription string into `TopicNode`s for further parsing.
     fn scan(topic: &String) -> Result<Vec<TopicNode>, &'static str> {
-        let tokens = topic.split('/').map(move |tk| match tk {
+        let mut tokens = topic.split('/').map(move |tk| match tk {
             "+" => Some(TopicNode::SingleWildcard),
-            "#" => Some(TopicNode::MultipleWildcard),
+            "#" => Some(TopicNode::MultiWildcard),
             _ if IDENT.is_match(tk) => Some(TopicNode::Name(tk.to_string())),
             _ => None,
         });
 
-        let mut ret = vec![];
-        for tk in tokens {
-            match tk {
-                None => return Err("Invalid characters in topic"),
-                Some(tk) => ret.push(tk.to_owned()),
-            }
+        if tokens.to_owned().any(move |tk| tk.is_none()) {
+            return Err("Invalid characters in topic");
         }
 
-        Ok(ret)
+        Ok(tokens
+            .filter(move |tk| tk.is_some())
+            .map(move |tk| tk.unwrap())
+            .collect())
     }
 
+    /// Parser the token stream.
     fn parse(&mut self) -> Result<Topic, &'static str> {
         match self.parse_topic() {
             Ok(_) => Ok(Topic {
@@ -98,24 +93,34 @@ impl TopicParser {
         }
     }
 
+    /// Parse the `topic` rule.
     fn parse_topic(&mut self) -> Result<(), &'static str> {
         match self.cur() {
-            Some(TopicNode::MultipleWildcard) => {
+            Some(&TopicNode::MultiWildcard) => {
                 if let None = self.lookahead() {
                     return Ok(());
                 }
-                Err("Toplevel multi-level wildcard '#' should not have trailing")
+                Err("Toplevel wildcard '#' should not have trailing channels")
             }
-            Some(e) if e == &TopicNode::MultipleWildcard => {
+            _ => {
+                self.parse_channel()?;
+
                 if let None = self.lookahead() {
                     return Ok(());
                 }
-                Err("Multi-level wildcard '#' should be placed at the end")
+
+                self.advance();
+
+                if self.cur() != Some(&TopicNode::MultiWildcard) && self.lookahead() != None {
+                    return Err("Wildcard '#' should be placed at the end");
+                }
+
+                Ok(())
             }
-            _ => self.parse_channel()
         }
     }
 
+    /// Parse the `channel` rule.
     fn parse_channel(&mut self) -> Result<(), &'static str> {
         loop {
             match self.cur() {
@@ -129,7 +134,7 @@ impl TopicParser {
                 }
                 Some(TopicNode::SingleWildcard) => {
                     if let None = self.lookahead() {
-                        return Err("Single-level '+' cannot be placed at the end");
+                        return Err("Wildcard '+' cannot be placed at the end");
                     }
                     self.advance();
                     continue;
@@ -141,14 +146,17 @@ impl TopicParser {
         Ok(())
     }
 
+    /// Get the current token.
     fn cur(&self) -> Option<&TopicNode> {
         self.tokens.get(self.pos)
     }
 
+    /// Get the current lookahead token.
     fn lookahead(&self) -> Option<&TopicNode> {
         self.tokens.get(self.pos + 1)
     }
 
+    /// Advance the parser position.
     fn advance(&mut self) {
         if self.pos < self.tokens.len() {
             self.pos += 1;
