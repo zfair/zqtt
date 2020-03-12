@@ -1,0 +1,35 @@
+[package]
+name = "zqtt-cli"
+version = "0.1.0"
+license = "MIT"
+edition = "2018"
+publish = false
+default-run = "zqtt-cli"
+
+[[bin]]
+name = "zqtt-cli"
+path = "src/main.rs"
+
+[dependencies]
+structopt = "0.3"
+log = { version = "0.4", features = ["max_level_debug", "release_max_level_warn"] }
+env_logger = "0.7.1"
+actix = "0.10.0-alpha.1"
+actix-rt = "1.0"
+zqtt = { path = "../" }
+
+[dependencies.tokio]
+version = "0.2.6"
+default-features = false
+features = [
+    "rt-core",
+    "rt-util",
+    "io-driver",
+    "io-util",
+    "tcp",
+    "uds",
+    "udp",
+    "time",
+    "signal",
+    "sync"
+]

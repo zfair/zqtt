@@ -1,3 +1,10 @@
 .idea/
+.vscode/
 
-/target
+**/*.rs.bk
+
+/target/
+Cargo.lock
+
+/zqtt-cli/target/
+/zqtt-cli/Cargo.lock
