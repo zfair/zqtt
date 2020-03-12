@@ -5,7 +5,7 @@ lazy_static! {
     static ref IDENT: Regex = Regex::new(r"[\-_0-9a-zA-Z]+").unwrap();
 }
 
-/// Subscription topic.
+/// Subscription topic, essentially a hierarchy of subscription channels.
 ///
 /// ## Syntax
 ///
@@ -32,10 +32,10 @@ enum TopicNode {
     /// A concrete channel name.
     Name(String),
 
-    /// The `+` wildcard, matched between its parent and child topics.
+    /// The `+` wildcard.
     SingleWildcard,
 
-    /// The `#` wildcard, only at the end of the topic string.
+    /// The `#` wildcard.
     MultiWildcard,
 }
 

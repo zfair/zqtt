@@ -39,22 +39,28 @@ pub trait Subscriber {
 }
 
 struct Node {
-    word: Option<u64>,
+    chan_id: Option<ChanID>,
     parent: Option<NonNull<Node>>,
-    children: BTreeMap<u64, Option<NonNull<Node>>>,
+    children: BTreeMap<ChanID, Option<NonNull<Node>>>,
     subs: HashMap<String, Rc<dyn Subscriber>>,
 }
 
 impl Default for Node {
     fn default() -> Self {
         Node {
-            word: None,
+            chan_id: None,
             parent: None,
             children: BTreeMap::default(),
             subs: HashMap::default(),
         }
     }
 }
+
+/// Channel ID, namely the hash of a topic channel.
+type ChanID = u64;
+
+/// Subscription ID, a list of [ChanID]s.
+type SubsID = Vec<ChanID>;
 
 #[derive(Debug)]
 pub struct SubTrie {
@@ -71,27 +77,28 @@ impl SubTrie {
 
     fn subscribe(
         &mut self,
-        ssid: &Vec<u64>,
+        subs_id: &SubsID,
         subscriber: Rc<dyn Subscriber>,
     ) -> Result<(), SubscribeError> {
         let mut cur = self.root;
-        for word in ssid.iter() {
+
+        for chan_id in subs_id.iter() {
             match cur {
                 Some(mut n) => {
                     let child;
                     unsafe {
                         child = n.as_mut();
                     }
-                    let next = child.children.get_mut(word);
+                    let next = child.children.get_mut(chan_id);
                     match next {
                         Some(x) => cur = *x,
                         None => {
                             let mut new_node = Box::into_raw_non_null(Box::new(Node::default()));
                             unsafe {
                                 new_node.as_mut().parent = cur;
-                                new_node.as_mut().word = Some(*word);
+                                new_node.as_mut().chan_id = Some(*chan_id);
                             }
-                            child.children.insert(*word, Some(new_node));
+                            child.children.insert(*chan_id, Some(new_node));
                             cur = Some(new_node);
                         }
                     }
@@ -110,99 +117,101 @@ impl SubTrie {
 }
 
 #[cfg(test)]
-struct TestSubscriber {
-    id: String,
-}
+mod test {
+    use super::*;
 
-#[cfg(test)]
-impl TestSubscriber {
-    fn new(id: String) -> Self {
-        TestSubscriber { id: id }
+    struct TestSubscriber {
+        id: String,
     }
-}
 
-#[cfg(test)]
-impl Subscriber for TestSubscriber {
-    fn id(&self) -> String {
-        self.id.to_owned()
+    impl TestSubscriber {
+        fn new(id: String) -> Self {
+            TestSubscriber { id }
+        }
     }
-    fn kind(&self) -> SubscriberKind {
-        SubscriberKind::Local
+
+    impl Subscriber for TestSubscriber {
+        fn id(&self) -> String {
+            self.id.to_owned()
+        }
+        fn kind(&self) -> SubscriberKind {
+            SubscriberKind::Local
+        }
+        fn send(&self, m: &super::Message) -> Result<(), SubscribeError> {
+            Ok(())
+        }
     }
-    fn send(&self, m: &Message) -> Result<(), SubscribeError> {
-        Ok(())
-    }
-}
 
-#[test]
-fn test_subscribe() {
-    let mut sub_trie = SubTrie::new();
-    let ssid_test: Vec<u64> = (0..10).collect();
-    let subscriber_test = Rc::new(TestSubscriber::new("Test".to_string()));
-    let ssid_test2: Vec<u64> = (0..10).collect();
-    let subscriber_test2 = Rc::new(TestSubscriber::new("Test2".to_string()));
-    let ssid_test3: Vec<u64> = (0..11).collect();
-    let subscriber_test3 = Rc::new(TestSubscriber::new("Test3".to_string()));
+    #[test]
+    fn test_subscribe() {
+        let mut sub_trie = SubTrie::new();
+        let subs_id_test = (0..10).collect();
+        let subscriber_test = Rc::new(TestSubscriber::new("Test".to_string()));
+        let subs_id_test2 = (0..10).collect();
+        let subscriber_test2 = Rc::new(TestSubscriber::new("Test2".to_string()));
+        let subs_id_test3 = (0..11).collect();
+        let subscriber_test3 = Rc::new(TestSubscriber::new("Test3".to_string()));
 
-    sub_trie
-        .subscribe(&ssid_test, subscriber_test.to_owned())
-        .unwrap();
-    sub_trie
-        .subscribe(&ssid_test2, subscriber_test2.to_owned())
-        .unwrap();
-    sub_trie
-        .subscribe(&ssid_test3, subscriber_test3.to_owned())
-        .unwrap();
+        sub_trie
+            .subscribe(&subs_id_test, subscriber_test.to_owned())
+            .unwrap();
+        sub_trie
+            .subscribe(&subs_id_test2, subscriber_test2.to_owned())
+            .unwrap();
+        sub_trie
+            .subscribe(&subs_id_test3, subscriber_test3.to_owned())
+            .unwrap();
 
-    {
-        let mut cur = sub_trie.root;
-        for x in ssid_test {
+        {
+            let mut cur = sub_trie.root;
+            for x in subs_id_test {
+                unsafe {
+                    cur = *cur.unwrap().as_mut().children.get(&x).unwrap();
+                    assert_eq!(cur.unwrap().as_mut().chan_id, Some(x));
+                }
+            }
+
             unsafe {
-                cur = *cur.unwrap().as_mut().children.get(&x).unwrap();
-                assert_eq!(cur.unwrap().as_mut().word, Some(x));
+                assert_eq!(
+                    cur.unwrap().as_mut().subs["Test"].id(),
+                    subscriber_test.id()
+                );
+                assert_eq!(
+                    cur.unwrap().as_mut().subs["Test2"].id(),
+                    subscriber_test2.id()
+                );
+                assert_eq!(cur.unwrap().as_mut().subs.len(), 2);
             }
         }
 
-        unsafe {
-            assert_eq!(
-                cur.unwrap().as_mut().subs["Test"].id(),
-                subscriber_test.id()
-            );
-            assert_eq!(
-                cur.unwrap().as_mut().subs["Test2"].id(),
-                subscriber_test2.id()
-            );
-            assert_eq!(cur.unwrap().as_mut().subs.len(), 2);
-        }
-    }
-
-    {
-        let mut cur = sub_trie.root;
-        for x in ssid_test3 {
-            unsafe {
-                cur = *cur.unwrap().as_mut().children.get(&x).unwrap();
+        {
+            let mut cur = sub_trie.root;
+            for x in subs_id_test3 {
+                unsafe {
+                    cur = *cur.unwrap().as_mut().children.get(&x).unwrap();
+                }
             }
-        }
 
-        unsafe {
-            assert_eq!(
-                cur.unwrap().as_mut().subs["Test3"].id(),
-                subscriber_test3.id()
-            );
-            assert_eq!(cur.unwrap().as_mut().subs.len(), 1);
-            assert_eq!(
-                cur.unwrap().as_mut().parent.unwrap().as_mut().subs["Test"].id(),
-                subscriber_test.id()
-            );
-            assert_eq!(
-                cur.unwrap().as_mut().parent.unwrap().as_mut().subs["Test2"].id(),
-                subscriber_test2.id()
-            );
-            assert_eq!(
-                cur.unwrap().as_mut().parent.unwrap().as_mut().subs["Test2"].id(),
-                subscriber_test2.id()
-            );
-            assert_eq!(cur.unwrap().as_mut().parent.unwrap().as_mut().subs.len(), 2);
+            unsafe {
+                assert_eq!(
+                    cur.unwrap().as_mut().subs["Test3"].id(),
+                    subscriber_test3.id()
+                );
+                assert_eq!(cur.unwrap().as_mut().subs.len(), 1);
+                assert_eq!(
+                    cur.unwrap().as_mut().parent.unwrap().as_mut().subs["Test"].id(),
+                    subscriber_test.id()
+                );
+                assert_eq!(
+                    cur.unwrap().as_mut().parent.unwrap().as_mut().subs["Test2"].id(),
+                    subscriber_test2.id()
+                );
+                assert_eq!(
+                    cur.unwrap().as_mut().parent.unwrap().as_mut().subs["Test2"].id(),
+                    subscriber_test2.id()
+                );
+                assert_eq!(cur.unwrap().as_mut().parent.unwrap().as_mut().subs.len(), 2);
+            }
         }
     }
 }
