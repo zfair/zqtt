@@ -2,7 +2,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 
 lazy_static! {
-    static ref IDENT: Regex = Regex::new(r"[_0-9a-zA-Z]+").unwrap();
+    static ref IDENT: Regex = Regex::new(r"[\-_0-9a-zA-Z]+").unwrap();
 }
 
 /// Subscription topic.
@@ -12,7 +12,7 @@ lazy_static! {
 /// ```antlr
 /// grammar topic;
 ///
-/// IDENT : [_0-9a-zA-Z]+ ;
+/// IDENT : [\-_0-9a-zA-Z]+ ;
 ///
 /// topic : channel ('/' '#')? EOF
 ///       | '#' EOF
@@ -169,8 +169,14 @@ mod tests {
     use crate::util::topic::Topic;
 
     #[test]
-    fn it_parses_topic_without_sw() {
+    fn it_parses_basic_topic() {
         let topic = Topic::new(&"a/b/c".to_string());
+        assert!(topic.is_ok());
+    }
+
+    #[test]
+    fn it_parses_non_alpha_topic() {
+        let topic = Topic::new(&"it-so_good/42".to_string());
         assert!(topic.is_ok());
     }
 
