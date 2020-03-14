@@ -11,7 +11,7 @@ use std::rc::Rc;
 type ChanID = u64;
 
 /// Subscription ID, a list of [ChanID]s.
-type SubsID = Vec<ChanID>;
+type SSID = [ChanID];
 
 // hash_map::DefaultHasher hash value of “+”
 const SINGLE_WILDCARD: ChanID = 7874756943448743542;
@@ -20,6 +20,7 @@ const MULTIPLE_WILDCARD: ChanID = 5913179443045906980;
 
 #[derive(Debug, Clone)]
 pub enum SubscribeError {}
+
 impl fmt::Display for SubscribeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self)
@@ -43,6 +44,7 @@ pub enum SubscriberKind {
 }
 
 type Subscribers = HashMap<String, Rc<dyn Subscriber>>;
+
 fn subscribers_add_range(dst: &mut Subscribers, from: &Subscribers) {
     for (key, val) in from.iter() {
         dst.insert(key.to_string(), val.clone());
@@ -79,7 +81,7 @@ pub struct SubTrie {
 }
 
 impl SubTrie {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let boxed_node = Box::new(Node::default());
         SubTrie {
             root: Some(Box::into_raw_non_null(boxed_node)),
@@ -88,7 +90,7 @@ impl SubTrie {
 
     pub fn subscribe(
         &mut self,
-        ssid: &SubsID,
+        ssid: &SSID,
         subscriber: Rc<dyn Subscriber>,
     ) -> Result<(), SubscribeError> {
         let mut cur = self.root;
@@ -135,7 +137,7 @@ impl SubTrie {
     fn slookup(
         &self,
         node: &Option<NonNull<Node>>,
-        ssid: &[u64],
+        ssid: &SSID,
         subs: &mut Subscribers,
     ) -> Result<(), SubscribeError> {
         if ssid.len() == 0 {
@@ -175,11 +177,10 @@ impl SubTrie {
 }
 
 #[cfg(test)]
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-
-#[cfg(test)]
 mod test {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
     use super::*;
 
     #[cfg(test)]
@@ -190,7 +191,7 @@ mod test {
     #[cfg(test)]
     impl TestSubscriber {
         fn new(id: String) -> Self {
-            TestSubscriber { id: id }
+            TestSubscriber { id }
         }
     }
 
