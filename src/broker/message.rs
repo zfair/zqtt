@@ -61,16 +61,16 @@ pub struct SubTrie {
 }
 
 impl SubTrie {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let boxed_node = Box::new(Node::default());
         SubTrie {
             root: Some(Box::into_raw_non_null(boxed_node)),
         }
     }
 
-    fn subscribe(
+    pub fn subscribe(
         &mut self,
-        ssid: &Vec<u64>,
+        ssid: &[u64],
         subscriber: Rc<dyn Subscriber>,
     ) -> Result<(), SubscribeError> {
         let mut cur = self.root;
@@ -118,7 +118,7 @@ struct TestSubscriber {
 #[cfg(test)]
 impl TestSubscriber {
     fn new(id: String) -> Self {
-        TestSubscriber { id: id }
+        TestSubscriber { id }
     }
 }
 
