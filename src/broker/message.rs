@@ -19,7 +19,9 @@ const SINGLE_WILDCARD: ChanID = 7874756943448743542;
 const MULTIPLE_WILDCARD: ChanID = 5913179443045906980;
 
 #[derive(Debug, Clone)]
-pub enum SubscribeError {}
+pub enum SubscribeError {
+    SSIDNotFound,
+}
 
 impl fmt::Display for SubscribeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -62,6 +64,28 @@ struct Node {
     parent: Option<NonNull<Node>>,
     children: BTreeMap<ChanID, Option<NonNull<Node>>>,
     subs: Subscribers,
+}
+
+impl Node {
+    unsafe fn orphans(&mut self) {
+        match self.parent {
+            None => {}
+            Some(parent) => {
+                unsafe {
+                    let parent_node = &mut *parent.as_ptr();
+                    // if this node has parent, it's chan_id must not None
+                    let this_node = parent_node.children.remove(&self.chan_id.unwrap()).unwrap();
+                    // make NonNull into Box, auto drop it
+                    Box::from_raw(this_node.unwrap().as_ptr());
+                    // check is parent
+                    if parent_node.subs.len() == 0 && parent_node.children.len() == 0 {
+                        // remove orphans recursive
+                        parent_node.orphans();
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl Default for Node {
@@ -124,6 +148,46 @@ impl SubTrie {
                 .as_mut()
                 .subs
                 .insert(subscriber.id(), subscriber.clone());
+        }
+        Ok(())
+    }
+
+    pub fn unsubscribe(
+        &mut self,
+        ssid: &SSID,
+        subscriber: Rc<dyn Subscriber>,
+    ) -> Result<(), SubscribeError> {
+        let mut cur = self.root;
+
+        for chan_id in ssid.iter() {
+            match cur {
+                Some(mut n) => {
+                    let child;
+                    unsafe {
+                        child = n.as_mut();
+                    }
+                    let next = child.children.get_mut(chan_id);
+                    match next {
+                        Some(x) => cur = *x,
+                        None => return Err(SubscribeError::SSIDNotFound),
+                    }
+                }
+                None => unreachable!(),
+            }
+        }
+
+        let match_node;
+        unsafe {
+            match_node = &mut *cur.unwrap().as_ptr();
+        }
+
+        // Remove subscriber
+        match_node.subs.remove(&subscriber.id());
+        // Remove orphans
+        if match_node.subs.len() == 0 && match_node.children.len() == 0 {
+            unsafe {
+                match_node.orphans();
+            }
         }
         Ok(())
     }
@@ -445,4 +509,6 @@ mod test {
             }
         }
     }
+
+    // TODO add unsubscribe method test
 }
