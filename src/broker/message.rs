@@ -1,5 +1,6 @@
 use actix::prelude::*;
 use bytes::Bytes;
+use lazy_static::lazy_static;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::error;
@@ -7,16 +8,18 @@ use std::fmt;
 use std::ptr::NonNull;
 use std::rc::Rc;
 
+use crate::util;
+
 /// Channel ID, namely the hash of a topic channel.
 type ChanID = u64;
 
 /// Subscription ID, a list of [ChanID]s.
 type SSID = [ChanID];
 
-// hash_map::DefaultHasher hash value of “+”
-const SINGLE_WILDCARD: ChanID = 7874756943448743542;
-// hash_map::DefaultHasher hash value of "#"
-const MULTIPLE_WILDCARD: ChanID = 5913179443045906980;
+lazy_static! {
+    static ref SINGLE_WILDCARD: ChanID = util::hash_bytes(b"+");
+    static ref MULTI_WILDCARD: ChanID = util::hash_bytes(b"#");
+}
 
 #[derive(Debug, Clone)]
 pub enum SubscribeError {
@@ -210,8 +213,8 @@ impl SubTrie {
                 let this_node = &*node.unwrap().as_ptr();
                 let s = &this_node.subs;
                 subscribers_add_range(subs, s);
-                // search MULTIPLE_WILDCARD at last level
-                if let Some(mwcn) = this_node.children.get(&MULTIPLE_WILDCARD) {
+                // search MULTI_WILDCARD at last level
+                if let Some(mwcn) = this_node.children.get(&MULTI_WILDCARD) {
                     subscribers_add_range(subs, &(*mwcn.unwrap().as_ptr()).subs);
                 }
             }
@@ -223,7 +226,7 @@ impl SubTrie {
             this_node = &*node.unwrap().as_ptr();
         }
 
-        if let Some(mwcn) = this_node.children.get(&MULTIPLE_WILDCARD) {
+        if let Some(mwcn) = this_node.children.get(&MULTI_WILDCARD) {
             unsafe {
                 subscribers_add_range(subs, &(*mwcn.unwrap().as_ptr()).subs);
             }
@@ -391,7 +394,7 @@ mod test {
                 lookup_topic: "a/b".to_string(),
                 match_count: 1,
                 match_ids: vec!["#".to_string()],
-            }, // "x",
+            },
             LookupTestCase {
                 lookup_topic: "x/y".to_string(),
                 match_count: 1,
