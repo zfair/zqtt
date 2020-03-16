@@ -52,7 +52,7 @@ type Subscribers = HashMap<String, Rc<dyn Subscriber>>;
 
 fn subscribers_add_range(dst: &mut Subscribers, from: &Subscribers) {
     for (key, val) in from.iter() {
-        dst.insert(key.to_string(), val.clone());
+        dst.insert(key.to_owned(), val.to_owned());
     }
 }
 
@@ -74,17 +74,15 @@ impl Node {
         match self.parent {
             None => {}
             Some(parent) => {
-                unsafe {
-                    let parent_node = &mut *parent.as_ptr();
-                    // if this node has parent, it's chan_id must not None
-                    let this_node = parent_node.children.remove(&self.chan_id.unwrap()).unwrap();
-                    // make NonNull into Box, auto drop it
-                    Box::from_raw(this_node.unwrap().as_ptr());
-                    // check is parent
-                    if parent_node.subs.len() == 0 && parent_node.children.len() == 0 {
-                        // remove orphans recursive
-                        parent_node.orphans();
-                    }
+                let parent_node = &mut *parent.as_ptr();
+                // if this node has parent, it's chan_id must not None
+                let this_node = parent_node.children.remove(&self.chan_id.unwrap()).unwrap();
+                // make NonNull into Box, auto drop it
+                Box::from_raw(this_node.unwrap().as_ptr());
+                // check is parent
+                if parent_node.subs.len() == 0 && parent_node.children.len() == 0 {
+                    // remove orphans recursive
+                    parent_node.orphans();
                 }
             }
         }
@@ -150,7 +148,7 @@ impl SubTrie {
             cur.unwrap()
                 .as_mut()
                 .subs
-                .insert(subscriber.id(), subscriber.clone());
+                .insert(subscriber.id(), subscriber.to_owned());
         }
         Ok(())
     }
@@ -197,11 +195,11 @@ impl SubTrie {
 
     pub fn lookup(&self, ssid: &Vec<u64>) -> Result<Subscribers, SubscribeError> {
         let mut subs = Subscribers::new();
-        self.slookup(&self.root, ssid.as_slice(), &mut subs)?;
+        self.do_lookup(&self.root, ssid.as_slice(), &mut subs)?;
         Ok(subs)
     }
 
-    fn slookup(
+    fn do_lookup(
         &self,
         node: &Option<NonNull<Node>>,
         ssid: &SSID,
@@ -233,10 +231,10 @@ impl SubTrie {
         }
         // dfs lookup single wildcard
         if let Some(swcn) = this_node.children.get(&SINGLE_WILDCARD) {
-            self.slookup(swcn, &ssid[1..ssid.len()], subs)?;
+            self.do_lookup(swcn, &ssid[1..ssid.len()], subs)?;
         }
         if let Some(matchn) = this_node.children.get(&ssid[0]) {
-            self.slookup(matchn, &ssid[1..ssid.len()], subs)?;
+            self.do_lookup(matchn, &ssid[1..ssid.len()], subs)?;
         }
 
         Ok(())
@@ -270,7 +268,7 @@ mod test {
         fn kind(&self) -> SubscriberKind {
             SubscriberKind::Local
         }
-        fn send(&self, m: &super::Message) -> Result<(), SubscribeError> {
+        fn send(&self, _m: &super::Message) -> Result<(), SubscribeError> {
             Ok(())
         }
     }
@@ -491,7 +489,7 @@ mod test {
         ];
 
         let parsed_topics: Vec<Vec<u64>> = topics
-            .clone()
+            .to_owned()
             .into_iter()
             .map(|x| parse_topic(x.to_string()))
             .collect();
@@ -504,7 +502,7 @@ mod test {
 
         for lookup in lookups.iter() {
             // lookup topic "a" subscriber
-            let parsed_lookup = parse_topic(lookup.lookup_topic.clone());
+            let parsed_lookup = parse_topic(lookup.lookup_topic.to_owned());
             let subs = sub_trie.lookup(&parsed_lookup).unwrap();
             assert_eq!(subs.len(), lookup.match_count);
             for id in lookup.match_ids.iter() {
