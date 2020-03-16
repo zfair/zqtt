@@ -17,8 +17,8 @@ type ChanID = u64;
 type SSID = [ChanID];
 
 lazy_static! {
-    static ref SINGLE_WILDCARD: ChanID = util::hash_bytes(b"+");
-    static ref MULTI_WILDCARD: ChanID = util::hash_bytes(b"#");
+    static ref SINGLE_WILDCARD: ChanID = util::hash_str("+");
+    static ref MULTI_WILDCARD: ChanID = util::hash_str("#");
 }
 
 #[derive(Debug, Clone)]

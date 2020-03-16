@@ -1,13 +1,14 @@
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
+use std::hash::Hash;
 
 pub mod codec;
 pub mod topic;
 pub mod uid;
 
 /// Hash bytes via the DefaultHasher.
-pub fn hash_bytes(bytes: &[u8]) -> u64 {
+pub fn hash_str(s: &str) -> u64 {
     let mut h = DefaultHasher::new();
-    h.write(bytes);
+    s.hash(&mut h);
     h.finish()
 }
