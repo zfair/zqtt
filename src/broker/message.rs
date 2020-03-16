@@ -21,9 +21,10 @@ lazy_static! {
     static ref MULTI_WILDCARD: ChanID = util::hash_str("#");
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum SubscribeError {
     SSIDNotFound,
+    SubscriberNotFound,
 }
 
 impl fmt::Display for SubscribeError {
@@ -182,8 +183,13 @@ impl SubTrie {
             match_node = &mut *cur.unwrap().as_ptr();
         }
 
-        // Remove subscriber
-        match_node.subs.remove(&subscriber.id());
+        // Remove subscriber rc
+        // we should return an error if subscriber not found?
+        let remove_result = match_node.subs.remove(&subscriber.id());
+        if remove_result.is_none() {
+            return Err(SubscribeError::SubscriberNotFound);
+        }
+
         // Remove orphans
         if match_node.subs.len() == 0 && match_node.children.len() == 0 {
             unsafe {
@@ -494,6 +500,7 @@ mod test {
             .map(|x| parse_topic(x.to_string()))
             .collect();
         let mut sub_trie = SubTrie::new();
+
         for (pos, topic) in parsed_topics.iter().enumerate() {
             // use topic name as subscriber id
             let test_subscriber = Rc::new(TestSubscriber::new(topics[pos].to_string()));
@@ -511,5 +518,184 @@ mod test {
         }
     }
 
-    // TODO add unsubscribe method test
+    #[cfg(test)]
+    struct UnSubscribeTestCase {
+        unsubscribe_topic: String,
+        unsubscribe_result: Result<(), SubscribeError>,
+        lookup_topic: String,
+        match_count: usize,
+        match_ids: Vec<String>,
+    }
+
+    // add unsubscribe method test
+    #[test]
+    fn test_unsubscribe() {
+        // use same topics with test_lookup function
+        // because test_lookup guarantee those topics can insert into sub trie correctly
+        let topics = vec![
+            "#",
+            "+",
+            "hello/#",
+            "hello/+",
+            "hello/+/zqtt",
+            "hello/mqtt/#",
+            "hello/mqtt/+",
+            "hello/mqtt/zqtt",
+            "hello/mqtt/+/+",
+            "hello/mqtt/+/foo",
+            "hello/mqtt/zqtt/foo",
+        ];
+
+        let parsed_topics: Vec<Vec<u64>> = topics
+            .to_owned()
+            .into_iter()
+            .map(|x| parse_topic(x.to_string()))
+            .collect();
+        let mut sub_trie = SubTrie::new();
+        for (pos, topic) in parsed_topics.iter().enumerate() {
+            // use topic name as subscriber id
+            let test_subscriber = Rc::new(TestSubscriber::new(topics[pos].to_string()));
+            sub_trie.subscribe(topic, test_subscriber).unwrap();
+        }
+
+        let test_cases: Vec<UnSubscribeTestCase> = vec![
+            UnSubscribeTestCase {
+                unsubscribe_topic: "#".to_string(),
+                unsubscribe_result: Ok(()),
+                lookup_topic: "a".to_string(),
+                match_count: 1,
+                match_ids: vec!["+".to_string()],
+            },
+            UnSubscribeTestCase {
+                unsubscribe_topic: "#".to_string(),
+                unsubscribe_result: Err(SubscribeError::SSIDNotFound),
+                lookup_topic: "a".to_string(),
+                match_count: 1,
+                match_ids: vec!["+".to_string()],
+            },
+            UnSubscribeTestCase {
+                unsubscribe_topic: "+".to_string(),
+                unsubscribe_result: Ok(()),
+                lookup_topic: "a".to_string(),
+                match_count: 0,
+                match_ids: vec![],
+            },
+            UnSubscribeTestCase {
+                unsubscribe_topic: "#".to_string(),
+                // because “#” subscriber is an orphan
+                unsubscribe_result: Err(SubscribeError::SSIDNotFound),
+                lookup_topic: "a/b".to_string(),
+                match_count: 0,
+                match_ids: vec![],
+            },
+            UnSubscribeTestCase {
+                unsubscribe_topic: "#".to_string(),
+                unsubscribe_result: Err(SubscribeError::SSIDNotFound),
+                lookup_topic: "hello/world".to_string(),
+                match_count: 2,
+                match_ids: vec!["hello/#".to_string(), "hello/+".to_string()],
+            },
+            UnSubscribeTestCase {
+                unsubscribe_topic: "hello/#".to_string(),
+                unsubscribe_result: Ok(()),
+                lookup_topic: "hello/world".to_string(),
+                match_count: 1,
+                match_ids: vec!["hello/+".to_string()],
+            },
+            UnSubscribeTestCase {
+                unsubscribe_topic: "hello/+".to_string(),
+                unsubscribe_result: Ok(()),
+                lookup_topic: "hello/world".to_string(),
+                match_count: 0,
+                match_ids: vec![],
+            },
+            UnSubscribeTestCase {
+                unsubscribe_topic: "hello/+".to_string(),
+                unsubscribe_result: Err(SubscribeError::SubscriberNotFound),
+                lookup_topic: "hello/world".to_string(),
+                match_count: 0,
+                match_ids: vec![],
+            },
+            UnSubscribeTestCase {
+                unsubscribe_topic: "hello/+".to_string(),
+                unsubscribe_result: Err(SubscribeError::SubscriberNotFound),
+                lookup_topic: "hello/world/zqtt".to_string(),
+                match_count: 1,
+                match_ids: vec!["hello/+/zqtt".to_string()],
+            },
+            UnSubscribeTestCase {
+                unsubscribe_topic: "hello/+/zqtt".to_string(),
+                unsubscribe_result: Ok(()),
+                lookup_topic: "hello/world/zqtt".to_string(),
+                match_count: 0,
+                match_ids: vec![],
+            },
+            // after remove "hello/+/zqtt", node "hello/+" becomes an orphan
+            UnSubscribeTestCase {
+                unsubscribe_topic: "hello/+".to_string(),
+                // it's err change into SSIDNotFound
+                unsubscribe_result: Err(SubscribeError::SSIDNotFound),
+                lookup_topic: "hello/world/zqtt".to_string(),
+                match_count: 0,
+                match_ids: vec![],
+            },
+            UnSubscribeTestCase {
+                unsubscribe_topic: "hello/+".to_string(),
+                // it's err change into SSIDNotFound
+                unsubscribe_result: Err(SubscribeError::SSIDNotFound),
+                lookup_topic: "hello/world/zqtt".to_string(),
+                match_count: 0,
+                match_ids: vec![],
+            },
+            UnSubscribeTestCase {
+                unsubscribe_topic: "hello/mqtt/#".to_string(),
+                // it's err change into SSIDNotFound
+                unsubscribe_result: Ok(()),
+                lookup_topic: "hello/mqtt/ohh".to_string(),
+                match_count: 1,
+                match_ids: vec!["hello/mqtt/+".to_string()],
+            },
+            UnSubscribeTestCase {
+                unsubscribe_topic: "hello/mqtt/#".to_string(),
+                unsubscribe_result: Err(SubscribeError::SSIDNotFound),
+                lookup_topic: "hello/mqtt/bili/acfun".to_string(),
+                match_count: 1,
+                match_ids: vec!["hello/mqtt/+/+".to_string()],
+            },
+        ];
+
+        let parsed_topics: Vec<Vec<u64>> = topics
+            .to_owned()
+            .into_iter()
+            .map(|x| parse_topic(x.to_string()))
+            .collect();
+        let mut sub_trie = SubTrie::new();
+
+        for (pos, topic) in parsed_topics.iter().enumerate() {
+            // use topic name as subscriber id
+            let test_subscriber = Rc::new(TestSubscriber::new(topics[pos].to_string()));
+            sub_trie.subscribe(topic, test_subscriber).unwrap();
+        }
+
+        for case in test_cases.iter() {
+            let parsed_unsubscribe = parse_topic(case.unsubscribe_topic.to_owned());
+            let unsubscriber = Rc::new(TestSubscriber::new(case.unsubscribe_topic.to_string()));
+            let unsubscribe_result = sub_trie.unsubscribe(&parsed_unsubscribe, unsubscriber);
+            match unsubscribe_result {
+                Ok(r) => {
+                    assert_eq!(r, case.unsubscribe_result.unwrap());
+                }
+                Err(e) => {
+                    assert_eq!(e, case.unsubscribe_result.unwrap_err());
+                }
+            }
+            // lookup topic subscriber after unsubscribe
+            let parsed_lookup = parse_topic(case.lookup_topic.to_owned());
+            let subs = sub_trie.lookup(&parsed_lookup).unwrap();
+            assert_eq!(subs.len(), case.match_count);
+            for id in case.match_ids.iter() {
+                assert_eq!(id, &subs[*&id].id());
+            }
+        }
+    }
 }

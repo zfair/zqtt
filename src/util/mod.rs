@@ -1,6 +1,6 @@
 use std::collections::hash_map::DefaultHasher;
-use std::hash::Hasher;
 use std::hash::Hash;
+use std::hash::Hasher;
 
 pub mod codec;
 pub mod topic;
