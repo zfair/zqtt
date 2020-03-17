@@ -212,8 +212,8 @@ impl SubTrie {
                 subs.extend(this_node.subs.to_owned());
                 // search MULTI_WILDCARD at last level
                 if let Some(mwcn) = this_node.children.get(&MULTI_WILDCARD) {
-                    let mw_node = &(*mwcn.unwrap().as_ptr()).subs;
-                    subs.extend(mw_node.to_owned());
+                    let mw_node = &*mwcn.unwrap().as_ptr();
+                    subs.extend(mw_node.subs.to_owned());
                 }
             }
             return Ok(());
@@ -226,8 +226,8 @@ impl SubTrie {
 
         if let Some(mwcn) = this_node.children.get(&MULTI_WILDCARD) {
             unsafe {
-                let mw_node = &(*mwcn.unwrap().as_ptr()).subs;
-                subs.extend(mw_node.to_owned());
+                let mw_node = &*mwcn.unwrap().as_ptr();
+                subs.extend(mw_node.subs.to_owned());
             }
         }
         // dfs lookup single wildcard
