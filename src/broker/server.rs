@@ -5,6 +5,7 @@ use std::net;
 use std::str::FromStr;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_util::codec::FramedRead;
+use uuid::Uuid;
 
 use crate::broker::session;
 use crate::util::codec;
@@ -75,12 +76,14 @@ impl Handler<TcpConnect> for Broker {
 
     fn handle(&mut self, msg: TcpConnect, ctx: &mut Context<Self>) {
         let broker_addr = ctx.address();
-        let uid = self.uid_gen.allocate();
+        let luid = self.uid_gen.allocate();
+        let guid = Uuid::new_v4();
         session::Session::create(move |session_ctx| {
             let (r, w) = tokio::io::split(msg.0);
             session::Session::add_stream(FramedRead::new(r, codec::MqttCodec), session_ctx);
             session::Session::new(
-                uid,
+                luid,
+                guid,
                 broker_addr,
                 msg.1,
                 actix::io::FramedWrite::new(w, codec::MqttCodec, session_ctx),
