@@ -21,7 +21,7 @@ lazy_static! {
     static ref MULTI_WILDCARD: ChanID = util::hash_str("#");
 }
 
-#[derive(Debug, Clone, PartialEq, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SubscribeError {
     SSIDNotFound,
     SubscriberNotFound,
@@ -50,12 +50,6 @@ pub enum SubscriberKind {
 }
 
 type Subscribers = HashMap<String, Rc<dyn Subscriber>>;
-
-fn subscribers_add_range(dst: &mut Subscribers, from: &Subscribers) {
-    for (key, val) in from.iter() {
-        dst.insert(key.to_owned(), val.to_owned());
-    }
-}
 
 pub trait Subscriber {
     fn id(&self) -> String;
@@ -215,11 +209,11 @@ impl SubTrie {
             // find match node
             unsafe {
                 let this_node = &*node.unwrap().as_ptr();
-                let s = &this_node.subs;
-                subscribers_add_range(subs, s);
+                subs.extend(this_node.subs.to_owned());
                 // search MULTI_WILDCARD at last level
                 if let Some(mwcn) = this_node.children.get(&MULTI_WILDCARD) {
-                    subscribers_add_range(subs, &(*mwcn.unwrap().as_ptr()).subs);
+                    let mw_node = &(*mwcn.unwrap().as_ptr()).subs;
+                    subs.extend(mw_node.to_owned());
                 }
             }
             return Ok(());
@@ -232,7 +226,8 @@ impl SubTrie {
 
         if let Some(mwcn) = this_node.children.get(&MULTI_WILDCARD) {
             unsafe {
-                subscribers_add_range(subs, &(*mwcn.unwrap().as_ptr()).subs);
+                let mw_node = &(*mwcn.unwrap().as_ptr()).subs;
+                subs.extend(mw_node.to_owned());
             }
         }
         // dfs lookup single wildcard
