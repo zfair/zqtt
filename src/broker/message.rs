@@ -254,19 +254,16 @@ mod test {
 
     use super::*;
 
-    #[cfg(test)]
     struct TestSubscriber {
         id: String,
     }
 
-    #[cfg(test)]
     impl TestSubscriber {
         fn new(id: String) -> Self {
             TestSubscriber { id }
         }
     }
 
-    #[cfg(test)]
     impl Subscriber for TestSubscriber {
         fn id(&self) -> String {
             self.id.to_owned()
@@ -279,7 +276,6 @@ mod test {
         }
     }
 
-    #[cfg(test)]
     fn parse_topic(topic: String) -> Vec<u64> {
         let parts: Vec<&str> = topic.split("/").collect();
         let mut result = Vec::new();
@@ -365,7 +361,6 @@ mod test {
         }
     }
 
-    #[cfg(test)]
     struct LookupTestCase {
         lookup_topic: String,
         match_count: usize,
@@ -518,7 +513,6 @@ mod test {
         }
     }
 
-    #[cfg(test)]
     struct UnSubscribeTestCase {
         unsubscribe_topic: String,
         unsubscribe_result: Result<(), SubscribeError>,
