@@ -20,6 +20,7 @@ mqtt3 = { git = "https://github.com/tekjar/mqtt3" }
 bytes = { version = "0.5", features = ["serde"] }
 regex = "1"
 lazy_static = "1.4.0"
+uuid = { version = "0.8", features = ["v4"] }
 
 [dependencies.tokio]
 version = "0.2.6"

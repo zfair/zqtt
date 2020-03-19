@@ -6,6 +6,7 @@ use std::net;
 use std::time::Instant;
 use tokio::io::WriteHalf;
 use tokio::net::TcpStream;
+use uuid::Uuid;
 
 use crate::broker::{message, server};
 use crate::util::codec;
@@ -13,7 +14,9 @@ use crate::util::uid::UID;
 
 pub struct Session {
     /// Local UID of this session.
-    uid: UID,
+    luid: UID,
+    // gloval UID of this session
+    guid: uuid::Uuid,
 
     /// Actor address of this session.
     addr: Option<Addr<Self>>,
@@ -34,13 +37,15 @@ pub struct Session {
 
 impl Session {
     pub fn new(
-        uid: UID,
+        luid: UID,
+        guid: uuid::Uuid,
         broker_addr: Addr<server::Broker>,
         socket_addr: net::SocketAddr,
         writer: actix::io::FramedWrite<WriteHalf<TcpStream>, codec::MqttCodec>,
     ) -> Session {
         Session {
-            uid,
+            luid,
+            guid,
             addr: None,
             broker_addr,
             net_addr: socket_addr,
@@ -58,7 +63,7 @@ impl Session {
         let f = self
             .broker_addr
             .send(server::SessionConnect {
-                session_id: self.uid,
+                session_id: self.luid,
                 session_addr: ctx.address(),
             })
             .into_actor(self)
@@ -127,7 +132,7 @@ impl Actor for Session {
 
 impl message::Subscriber for Session {
     fn id(&self) -> String {
-        self.uid.to_string()
+        self.luid.to_string()
     }
 
     fn kind(&self) -> message::SubscriberKind {
