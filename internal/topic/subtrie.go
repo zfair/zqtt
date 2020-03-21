@@ -4,23 +4,60 @@ import (
 	"sync"
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
-	"github.com/zfair/zqtt/internal/util"
+	"github.com/zfair/zqtt/zerrors"
+
+	"github.com/spaolacci/murmur3"
 )
 
 type SubscriberType int8
 
 const (
-	SubscriberTypeLocal int8 = iota + 1
+	SubscriberTypeLocal SubscriberType = iota + 1
 	SubscriberTypeRemote
 )
 
+var (
+	SingleWildcard = murmur3.Sum64([]byte("+"))
+	MultiWildcard  = murmur3.Sum64([]byte("#"))
+)
+
 type Subscriber interface {
-	ID() util.LUID
+	ID() uint64
 	Type() SubscriberType
 	Send(packets.ControlPacket) error
 }
 
-type Subscribers map[util.LUID]Subscriber
+type Subscribers map[uint64]Subscriber
+
+func newSubscrbers() Subscribers {
+	return make(Subscribers)
+}
+
+func (s *Subscribers) AddRange(from Subscribers) {
+	for id, v := range from {
+		(*s)[id] = v // This would simply overwrite duplicates
+	}
+}
+
+func (s *Subscribers) AddSubscriber(subscriber Subscriber) bool {
+	if _, found := (*s)[subscriber.ID()]; !found {
+		(*s)[subscriber.ID()] = subscriber
+		return true
+	}
+	return false
+}
+
+func (s *Subscribers) Remove(subscriber Subscriber) bool {
+	if _, found := (*s)[subscriber.ID()]; !found {
+		delete(*s, subscriber.ID())
+		return true
+	}
+	return false
+}
+
+func (s *Subscribers) Size() int {
+	return len(*s)
+}
 
 type node struct {
 	sync.RWMutex
@@ -29,6 +66,24 @@ type node struct {
 	children map[uint64]*node
 	subs     Subscribers
 }
+
+func (n *node) orphan() {
+	// No Need n.RLock()
+	// in SubTrie method, all method did not modify node.parent and node.word after new node
+	if n.parent == nil {
+		return
+	}
+	n.parent.Lock()
+	//  It's safe to do this even if the key is already absent from the map
+	delete(n.parent.children, n.word)
+	if n.parent.subs.Size() == 0 && len(n.parent.children) == 0 {
+		n.parent.Unlock()
+		n.parent.orphan()
+	} else {
+		n.parent.Unlock()
+	}
+}
+
 type SubTrie struct {
 	sync.RWMutex
 	root *node
@@ -37,7 +92,7 @@ type SubTrie struct {
 func NewSubTrie() *SubTrie {
 	return &SubTrie{
 		root: &node{
-			subs:     make(Subscribers),
+			subs:     newSubscrbers(),
 			children: make(map[uint64]*node),
 		},
 	}
@@ -50,26 +105,80 @@ func (t *SubTrie) Subscribe(ssid []uint64, subscriber Subscriber) error {
 		child, ok := curr.children[word]
 		curr.RUnlock()
 		if !ok {
-			child = &node{
-				word:     word,
-				subs:     make(Subscribers),
-				parent:   curr,
-				children: make(map[uint64]*node),
-			}
-			// unlock read lock
 			// lock write lock
 			curr.Lock()
-			curr.children[word] = child
+			// double check
+			child, ok = curr.children[word]
+			if !ok {
+				child = &node{
+					word:     word,
+					subs:     newSubscrbers(),
+					parent:   curr,
+					children: make(map[uint64]*node),
+				}
+				curr.children[word] = child
+			}
 			curr.Unlock()
 		}
 		curr = child
 	}
 
 	curr.Lock()
-	if _, found := curr.subs[subscriber.ID()]; !found {
-		curr.subs[subscriber.ID()] = subscriber
-	}
+	curr.subs.AddSubscriber(subscriber)
 	curr.Unlock()
 
 	return nil
+}
+
+func (t *SubTrie) UnSubscribe(ssid []uint64, subscriber Subscriber) error {
+	curr := t.root
+	for _, word := range ssid {
+		curr.RLock()
+		child, ok := curr.children[word]
+		curr.RUnlock()
+		if !ok {
+			return zerrors.ErrSSIDNotFound
+		}
+		curr = child
+	}
+	curr.Lock()
+	curr.subs.Remove(subscriber)
+	if curr.subs.Size() == 0 && len(curr.children) == 0 {
+		// orphan about parent, not this node
+		// spawn a goroutne to recycle this node
+		go curr.orphan()
+	}
+	curr.Unlock()
+	return nil
+}
+
+func (t *SubTrie) Lookup(ssid []uint64) Subscribers {
+	subs := newSubscrbers()
+	t.doLookup(t.root, ssid, subs)
+	return subs
+}
+
+func (t *SubTrie) doLookup(n *node, query []uint64, subs Subscribers) {
+	n.RLock()
+	defer n.RUnlock()
+	if len(query) == 0 {
+		subs.AddRange(n.subs)
+		return
+	}
+
+	// fetch multi wildcard node
+	if mwcn, ok := n.children[MultiWildcard]; ok {
+		mwcn.RLock()
+		subs.AddRange(mwcn.subs)
+		mwcn.RUnlock()
+	}
+
+	// dfs lookup single wildcard
+	if swcn, ok := n.children[SingleWildcard]; ok {
+		t.doLookup(swcn, query[1:], subs)
+	}
+
+	if matchn, ok := n.children[query[0]]; ok {
+		t.doLookup(matchn, query[1:], subs)
+	}
 }

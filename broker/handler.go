@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
+	_ "github.com/zfair/zqtt/internal/topic"
 	"go.uber.org/zap"
 )
 

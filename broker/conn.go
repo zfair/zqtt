@@ -35,9 +35,9 @@ type Conn struct {
 	// Message Channel
 	msgChan chan packets.ControlPacket
 
-	username string    // The username provided by the client during MQTT connect.
-	luid     util.LUID // local unique id of this connection
-	guid     string    // global uinque id of this connection
+	username string // The username provided by the client during MQTT connect.
+	luid     uint64 // local unique id of this connection
+	guid     string // global uinque id of this connection
 
 	server *Server
 }
@@ -67,7 +67,7 @@ func newConn(s *Server, socket net.Conn) (*Conn, error) {
 	}, nil
 }
 
-func (c *Conn) LUID() util.LUID {
+func (c *Conn) LUID() uint64 {
 	return c.luid
 }
 

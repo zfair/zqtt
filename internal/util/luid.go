@@ -5,9 +5,6 @@ import (
 	"time"
 )
 
-// ID represents a process-wide unique ID.
-type LUID uint64
-
 // next is the next identifier. We seed it with the time in seconds
 // to avoid collisions of ids between process restarts.
 var next = uint64(
@@ -15,6 +12,6 @@ var next = uint64(
 )
 
 // NewID generates a new, process-wide unique ID.
-func NewLUID() LUID {
-	return LUID(atomic.AddUint64(&next, 1))
+func NewLUID() uint64 {
+	return atomic.AddUint64(&next, 1)
 }
