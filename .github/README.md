@@ -1,10 +1,10 @@
-# zqtt-rs
+# zqtt
 
 ![build-status](https://github.com/zfair/zqtt/workflows/build/badge.svg)
 
 > *Work in progress.*
 
-Zqtt, a fast and safe MQTT broker.
+Zqtt, a MQTT broker.
 
 ## License
 
