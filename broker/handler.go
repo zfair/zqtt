@@ -51,6 +51,7 @@ exit:
 	return err
 }
 
+// TODO: code it
 func (c *Conn) onPacket(packet packets.ControlPacket) error {
 	return nil
 }

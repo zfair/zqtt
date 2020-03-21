@@ -106,10 +106,17 @@ func (c *Conn) IOLoop() error {
 	}
 exit:
 	c.server.logger.Info("IOLoop exit", zap.Uint64("luid", uint64(c.luid)))
-	close(c.ExitChan)
 	if err != nil {
 		c.server.logger.Error(
 			"IOLoop exit",
+			zap.Uint64("luid", uint64(c.luid)),
+			zap.Error(err),
+		)
+	}
+	err = c.Close()
+	if err != nil {
+		c.server.logger.Error(
+			"IOLoop exit close",
 			zap.Uint64("luid", uint64(c.luid)),
 			zap.Error(err),
 		)
@@ -118,7 +125,9 @@ exit:
 }
 
 func (c *Conn) Close() error {
-	return nil
+	close(c.ExitChan)
+	err := c.socket.Close()
+	return err
 }
 
 func (c *Conn) Flush() error {

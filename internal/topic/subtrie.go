@@ -48,7 +48,7 @@ func (s *Subscribers) AddSubscriber(subscriber Subscriber) bool {
 }
 
 func (s *Subscribers) Remove(subscriber Subscriber) bool {
-	if _, found := (*s)[subscriber.ID()]; !found {
+	if _, found := (*s)[subscriber.ID()]; found {
 		delete(*s, subscriber.ID())
 		return true
 	}
@@ -142,13 +142,15 @@ func (t *SubTrie) UnSubscribe(ssid []uint64, subscriber Subscriber) error {
 		curr = child
 	}
 	curr.Lock()
-	curr.subs.Remove(subscriber)
-	if curr.subs.Size() == 0 && len(curr.children) == 0 {
-		// orphan about parent, not this node
-		// spawn a goroutne to recycle this node
-		go curr.orphan()
+	defer curr.Unlock()
+	if !curr.subs.Remove(subscriber) {
+		return zerrors.ErrSubscriberNotFound
 	}
-	curr.Unlock()
+
+	if curr.subs.Size() == 0 && len(curr.children) == 0 {
+		// TODO: maybe we can go curr.orphan()
+		curr.orphan()
+	}
 	return nil
 }
 
