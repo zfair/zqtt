@@ -2,12 +2,14 @@ package broker
 
 import (
 	"bufio"
+	"io"
 	"net"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/zfair/zqtt/internal/util"
+	"github.com/zfair/zqtt/zerrors"
 	"go.uber.org/zap"
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
@@ -60,6 +62,7 @@ func newConn(s *Server, socket net.Conn) (*Conn, error) {
 		FlushInterval:    s.getCfg().FlushInterval,
 
 		ExitChan: make(chan int),
+		msgChan:  make(chan packets.ControlPacket),
 
 		luid:   util.NewLUID(),
 		guid:   uuid.String(),
@@ -96,6 +99,9 @@ func (c *Conn) IOLoop() error {
 			var packet packets.ControlPacket
 			packet, err = packets.ReadPacket(c.reader)
 			if err != nil {
+				if err == io.EOF {
+					err = nil
+				}
 				goto exit
 			}
 			err = c.onPacket(packet)
@@ -113,7 +119,8 @@ exit:
 			zap.Error(err),
 		)
 	}
-	err = c.Close()
+	close(c.ExitChan)
+	// err = c.Close()
 	if err != nil {
 		c.server.logger.Error(
 			"IOLoop exit close",
@@ -124,8 +131,16 @@ exit:
 	return err
 }
 
+func (c Conn) Send(msg packets.ControlPacket) error {
+	select {
+	case c.msgChan <- msg:
+		return nil
+	case <-c.ExitChan:
+		return zerrors.ErrConnExited
+	}
+}
+
 func (c *Conn) Close() error {
-	close(c.ExitChan)
 	err := c.socket.Close()
 	return err
 }

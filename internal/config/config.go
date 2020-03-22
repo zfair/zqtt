@@ -60,7 +60,7 @@ func NewConfig() *Config {
 	return &Config{
 		NodeID: defaultID,
 
-		TCPAddress:   "0.0.0.0:9798",
+		TCPAddress:   "127.0.0.1:9798",
 		HTTPAddress:  "0.0.0.0:9799",
 		HTTPSAddress: "0.0.0.0:9800",
 

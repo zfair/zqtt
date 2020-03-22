@@ -1,9 +1,11 @@
 package broker
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
+	"github.com/pkg/errors"
 	_ "github.com/zfair/zqtt/internal/topic"
 	"go.uber.org/zap"
 )
@@ -53,5 +55,19 @@ exit:
 
 // TODO: code it
 func (c *Conn) onPacket(packet packets.ControlPacket) error {
-	return nil
+	var err error
+	switch p := packet.(type) {
+	case *packets.ConnectPacket:
+		err = c.onConnect(p)
+	default:
+		err = errors.Errorf("unimplement")
+	}
+	return err
+}
+
+func (c *Conn) onConnect(packet *packets.ConnectPacket) error {
+	fmt.Printf("%#v\n", packet)
+	return c.Send(&packets.ConnackPacket{
+		ReturnCode: packets.Accepted,
+	})
 }
