@@ -2,6 +2,7 @@ package broker
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"net"
 	"sync"
@@ -35,8 +36,8 @@ type Conn struct {
 
 	// ExitChan
 	ExitChan chan int
-	// Message Channel
-	msgChan chan *topic.Message
+	// send Channel
+	sendChan chan []byte
 
 	username string // The username provided by the client during MQTT connect.
 	luid     uint64 // local unique id of this connection
@@ -63,7 +64,7 @@ func newConn(s *Server, socket net.Conn) (*Conn, error) {
 		FlushInterval:    s.getCfg().FlushInterval,
 
 		ExitChan: make(chan int),
-		msgChan:  make(chan *topic.Message),
+		sendChan: make(chan []byte),
 
 		luid:   util.NewLUID(),
 		guid:   uuid.String(),
@@ -132,9 +133,24 @@ exit:
 	return err
 }
 
-func (c Conn) Send(msg *topic.Message) error {
+// only for sending publish message to the client
+func (c Conn) SendMessage(msg *topic.Message) error {
+	packet := (packets.NewControlPacket(packets.Publish)).(*packets.PublishPacket)
+	packet.MessageID = msg.MessageID
+	packet.Qos = msg.Qos
+	packet.TopicName = msg.Topic
+	packet.Payload = msg.Payload
+	buf := new(bytes.Buffer)
+	err := packet.Write(buf)
+	if err != nil {
+		return err
+	}
+	return c.Send(buf.Bytes())
+}
+
+func (c Conn) Send(b []byte) error {
 	select {
-	case c.msgChan <- msg:
+	case c.sendChan <- b:
 		return nil
 	case <-c.ExitChan:
 		return zerrors.ErrConnExited

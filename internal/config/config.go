@@ -45,6 +45,9 @@ type Config struct {
 	TLSRootCAFile       string `yaml:"tlsRootCaFile"`
 	TLSRequired         int    `yaml:"tlsRequired"`
 	TLSMinVersion       uint16 `yaml:"tlsMinVersion"`
+
+	// config of the storage
+	Storage *ConfigProvider
 }
 
 func NewConfig() *Config {
@@ -82,4 +85,14 @@ func NewConfig() *Config {
 
 		TLSMinVersion: tls.VersionTLS10,
 	}
+}
+
+type Provider interface {
+	Name() string
+	Configure(config map[string]interface{}) error
+}
+
+type ConfigProvider struct {
+	Provider string                 `yaml:"provider"`
+	Config   map[string]interface{} `yaml:"config,omitempty"`
 }
