@@ -1,7 +1,6 @@
 package broker
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
@@ -66,8 +65,8 @@ func (c *Conn) onPacket(packet packets.ControlPacket) error {
 }
 
 func (c *Conn) onConnect(packet *packets.ConnectPacket) error {
-	fmt.Printf("%#v\n", packet)
-	return c.Send(&packets.ConnackPacket{
-		ReturnCode: packets.Accepted,
-	})
+	connack := packets.NewControlPacket(
+		packets.Connack,
+	)
+	return c.Send(connack)
 }

@@ -1,9 +1,8 @@
 package broker
 
 import (
-	"testing"
-
 	MQTT "github.com/eclipse/paho.mqtt.golang"
+	"testing"
 )
 
 const TestBrokerAddress = "tcp://127.0.0.1:9798"
@@ -41,5 +40,4 @@ func TestConnectToBroker(t *testing.T) {
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
 		t.Fatalf("err: %#v\n", token.Error())
 	}
-
 }

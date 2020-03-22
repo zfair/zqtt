@@ -120,7 +120,7 @@ exit:
 		)
 	}
 	close(c.ExitChan)
-	// err = c.Close()
+	err = c.Close()
 	if err != nil {
 		c.server.logger.Error(
 			"IOLoop exit close",
