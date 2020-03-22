@@ -1,10 +1,12 @@
 package broker
 
 import (
+	"bytes"
 	"time"
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
 	"github.com/pkg/errors"
+	"github.com/zfair/zqtt/internal/topic"
 	_ "github.com/zfair/zqtt/internal/topic"
 	"go.uber.org/zap"
 )
@@ -31,7 +33,7 @@ func (c *Conn) messagePump(startedChan chan int) error {
 			}
 		case msg := <-c.msgChan:
 			c.writerLock.Lock()
-			err = msg.Write(c.writer)
+			_, err = c.writer.Write(msg.Payload)
 			c.writerLock.Unlock()
 			if err != nil {
 				goto exit
@@ -68,5 +70,11 @@ func (c *Conn) onConnect(packet *packets.ConnectPacket) error {
 	connack := packets.NewControlPacket(
 		packets.Connack,
 	)
-	return c.Send(connack)
+	buf := new(bytes.Buffer)
+	err := connack.Write(buf)
+	if err != nil {
+		return err
+	}
+	msg := topic.NewPayloadOnlyMessage(buf.Bytes())
+	return c.Send(msg)
 }

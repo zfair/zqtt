@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/zfair/zqtt/internal/topic"
 	"github.com/zfair/zqtt/internal/util"
 	"github.com/zfair/zqtt/zerrors"
 	"go.uber.org/zap"
@@ -35,7 +36,7 @@ type Conn struct {
 	// ExitChan
 	ExitChan chan int
 	// Message Channel
-	msgChan chan packets.ControlPacket
+	msgChan chan *topic.Message
 
 	username string // The username provided by the client during MQTT connect.
 	luid     uint64 // local unique id of this connection
@@ -62,7 +63,7 @@ func newConn(s *Server, socket net.Conn) (*Conn, error) {
 		FlushInterval:    s.getCfg().FlushInterval,
 
 		ExitChan: make(chan int),
-		msgChan:  make(chan packets.ControlPacket),
+		msgChan:  make(chan *topic.Message),
 
 		luid:   util.NewLUID(),
 		guid:   uuid.String(),
@@ -131,7 +132,7 @@ exit:
 	return err
 }
 
-func (c Conn) Send(msg packets.ControlPacket) error {
+func (c Conn) Send(msg *topic.Message) error {
 	select {
 	case c.msgChan <- msg:
 		return nil
