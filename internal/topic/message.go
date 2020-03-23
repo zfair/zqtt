@@ -5,7 +5,7 @@ type Message struct {
 	GUID       string // internal unique id of this message
 	ClientID   string
 	MessageID  uint16 // the origin id of this message (optioal)
-	Topic      string // the origin topic name of this message
+	TopicName  string // the origin topic name of this message
 	Ssid       []uint64
 	Qos        byte // qos of this message
 	TTL        int
@@ -13,25 +13,27 @@ type Message struct {
 }
 
 func NewMessage(
-	messageSeq int64,
 	guid string,
 	clientID string,
 	messageID uint16,
-	topic string,
+	topicName string,
 	ssid []uint64,
 	qos byte,
 	ttl int,
 	payload []byte,
 ) *Message {
 	return &Message{
-		MessageSeq: messageSeq,
-		GUID:       guid,
-		ClientID:   clientID,
-		MessageID:  messageID,
-		Topic:      topic,
-		Ssid:       ssid,
-		Qos:        qos,
-		TTL:        ttl,
-		Payload:    payload,
+		GUID:      guid,
+		ClientID:  clientID,
+		MessageID: messageID,
+		TopicName: topicName,
+		Ssid:      ssid,
+		Qos:       qos,
+		TTL:       ttl,
+		Payload:   payload,
 	}
+}
+
+func (m *Message) SetMessageSeq(messageSeq int64) {
+	m.MessageSeq = messageSeq
 }

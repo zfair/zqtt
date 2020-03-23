@@ -16,7 +16,9 @@ CREATE TABLE message(
 CREATE EXTENSION btree_gin;
 CREATE INDEX idx_message_gin ON message USING GIN(
     message_seq,
+    client_id,
     ttl_until,
+    created_at,
     ssid_len,
     (ssid[0]),
     (ssid[1]),

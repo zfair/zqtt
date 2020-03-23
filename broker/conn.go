@@ -140,7 +140,7 @@ func (c Conn) SendMessage(msg *topic.Message) error {
 	packet := (packets.NewControlPacket(packets.Publish)).(*packets.PublishPacket)
 	packet.MessageID = msg.MessageID
 	packet.Qos = msg.Qos
-	packet.TopicName = msg.Topic
+	packet.TopicName = msg.TopicName
 	packet.Payload = msg.Payload
 	buf := new(bytes.Buffer)
 	err := packet.Write(buf)

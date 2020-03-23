@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"io"
 	"time"
 
@@ -21,8 +22,8 @@ type Storage interface {
 	// Storage implements a config provider
 	config.Provider
 	// Store message to the storage instance
-	Store(m *topic.Message) error
+	Store(ctx context.Context, m *topic.Message) error
 
 	// query message from storage
-	Query(topic string, ssid string, opts QueryOptions) ([]topic.Message, error)
+	Query(ctx context.Context, topic string, ssid string, opts QueryOptions) ([]topic.Message, error)
 }

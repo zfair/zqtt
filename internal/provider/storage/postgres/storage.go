@@ -1,23 +1,29 @@
 package postgres
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 
-	_ "github.com/lib/pq"
+	pq "github.com/lib/pq"
 	"github.com/zfair/zqtt/internal/provider/storage"
 	"github.com/zfair/zqtt/internal/topic"
+	"go.uber.org/zap"
 )
 
 var _ storage.Storage = new(PostgresStorage)
 
 type PostgresStorage struct {
-	db *sql.DB
+	logger *zap.Logger
+	db     *sql.DB
 }
 
-func NewPostgresStorage() *PostgresStorage {
-	return &PostgresStorage{}
+func NewPostgresStorage(logger *zap.Logger) *PostgresStorage {
+	return &PostgresStorage{
+		logger: logger,
+	}
 }
 
 func (s *PostgresStorage) Name() string {
@@ -93,10 +99,32 @@ func (s *PostgresStorage) Close() error {
 	return s.db.Close()
 }
 
-func (s *PostgresStorage) Store(m *topic.Message) error {
+func (s *PostgresStorage) Store(ctx context.Context, m *topic.Message) error {
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	ssidStringArray := make(pq.StringArray, len(m.Ssid))
+	for i := range m.Ssid {
+		ssidStringArray[i] = strconv.FormatUint(m.Ssid[i], 10)
+	}
+	_, err = conn.ExecContext(
+		ctx,
+		`INSERT INTO message(guid, client_id, message_id, topic, ssid, ssid_len, ttl_until, qos, payload) 
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		m.GUID, m.ClientID, m.MessageID, m.TopicName, ssidStringArray, len(m.Ssid), m.TTL, m.Qos, string(m.Payload),
+	)
+	if err != nil {
+		return err
+	}
+	s.logger.Info(
+		"Postgres Storage Store",
+		zap.String("guid", m.GUID),
+		zap.String("clientID", m.ClientID),
+	)
 	return nil
 }
 
-func (s *PostgresStorage) Query(topic string, ssid string, opts storage.QueryOptions) ([]topic.Message, error) {
+func (s *PostgresStorage) Query(ctx context.Context, topic string, ssid string, opts storage.QueryOptions) ([]topic.Message, error) {
 	return nil, nil
 }
