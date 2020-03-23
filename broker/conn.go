@@ -40,8 +40,10 @@ type Conn struct {
 	sendChan chan []byte
 
 	username string // The username provided by the client during MQTT connect.
-	luid     uint64 // local unique id of this connection
-	guid     string // global uinque id of this connection
+	clientID string // The client id provided by the client during MQTT connect.
+
+	luid uint64 // local unique id of this connection
+	guid string // global uinque id of this connection
 
 	server *Server
 }
