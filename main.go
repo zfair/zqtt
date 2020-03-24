@@ -8,13 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/judwhite/go-svc/svc"
+	"gopkg.in/yaml.v2"
+
 	"github.com/zfair/zqtt/broker"
 	"github.com/zfair/zqtt/internal/config"
-	"gopkg.in/yaml.v2"
 )
 
 type program struct {
@@ -22,12 +22,6 @@ type program struct {
 	server *broker.Server
 }
 
-func main() {
-	prg := &program{}
-	if err := svc.Run(prg, syscall.SIGINT, syscall.SIGTERM); err != nil {
-		log.Fatalf("%s", err)
-	}
-}
 func (p *program) Init(env svc.Environment) error {
 	if env.IsWindowsService() {
 		dir := filepath.Dir(os.Args[0])
@@ -40,7 +34,7 @@ func (p *program) Start() error {
 	cfg := config.NewConfig()
 
 	flagSet := brokerFlagSet()
-	flagSet.Parse(os.Args[1:])
+	_ = flagSet.Parse(os.Args[1:])
 
 	rand.Seed(time.Now().UTC().UnixNano())
 
@@ -49,12 +43,10 @@ func (p *program) Start() error {
 		buf, err := ioutil.ReadFile(configFile)
 		if err != nil {
 			log.Fatalf("failed to load config file %s - %s", configFile, err)
-			os.Exit(1)
 		}
 		err = yaml.Unmarshal(buf, &cfg)
 		if err != nil {
 			log.Fatalf("failed to load config file %s - %s", configFile, err)
-			os.Exit(1)
 		}
 	}
 
@@ -67,7 +59,7 @@ func (p *program) Start() error {
 	go func() {
 		err := p.server.Main()
 		if err != nil {
-			p.Stop()
+			_ = p.Stop()
 			os.Exit(1)
 		}
 	}()
@@ -84,9 +76,16 @@ func (p *program) Stop() error {
 
 func brokerFlagSet() *flag.FlagSet {
 	flagSet := flag.NewFlagSet("broker", flag.ExitOnError)
-	// basic options
+
 	flagSet.Bool("version", false, "print version string")
 	flagSet.String("config", "", "path to config file")
 
 	return flagSet
+}
+
+func main() {
+	prg := &program{}
+	if err := svc.Run(prg); err != nil {
+		log.Fatalf("%s", err)
+	}
 }

@@ -155,7 +155,7 @@ func (c Conn) Send(b []byte) error {
 	case c.sendChan <- b:
 		return nil
 	case <-c.ExitChan:
-		return zerrors.ErrConnExited
+		return zerrors.ErrConnClosed
 	}
 }
 
