@@ -7,12 +7,8 @@ jobs:
     name: Build and test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@master
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2-beta
         with:
-          toolchain: nightly
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --all-features
+          go-version: '^1.14.1'
+      - run: go build
