@@ -6,8 +6,9 @@ import (
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
 	"github.com/pkg/errors"
-	_ "github.com/zfair/zqtt/internal/topic"
 	"go.uber.org/zap"
+
+	_ "github.com/zfair/zqtt/internal/topic"
 )
 
 func (c *Conn) messagePump(startedChan chan int) error {
@@ -22,7 +23,7 @@ func (c *Conn) messagePump(startedChan chan int) error {
 		select {
 		case <-c.ExitChan:
 			goto exit
-		// TODO: 优化 flush，没有新数据无需 flush
+		// TODO(locustchen): 优化 flush, 没有新数据无需 flush
 		case <-flushChan:
 			c.writerLock.Lock()
 			err = c.Flush()
@@ -41,11 +42,11 @@ func (c *Conn) messagePump(startedChan chan int) error {
 	}
 
 exit:
-	c.server.logger.Info("messagePump exit", zap.Uint64("luid", uint64(c.luid)))
+	c.server.logger.Info("messagePump exits", zap.Uint64("luid", uint64(c.luid)))
 	flushTicker.Stop()
 	if err != nil {
 		c.server.logger.Error(
-			"messagePump exit",
+			"messagePump exits",
 			zap.Uint64("luid", uint64(c.luid)),
 			zap.Error(err),
 		)
@@ -53,25 +54,25 @@ exit:
 	return err
 }
 
-// TODO: code it
+// TODO(locustchen)
 func (c *Conn) onPacket(packet packets.ControlPacket) error {
 	var err error
 	switch p := packet.(type) {
 	case *packets.ConnectPacket:
 		err = c.onConnect(p)
 	default:
-		err = errors.Errorf("unimplement")
+		err = errors.Errorf("unimplemented")
 	}
 	return err
 }
 
-func (c *Conn) onConnect(packet *packets.ConnectPacket) error {
-	connack := packets.NewControlPacket(
+func (c *Conn) onConnect(_packet *packets.ConnectPacket) error {
+	connAck := packets.NewControlPacket(
 		packets.Connack,
 	)
-	// TODO: use buffer pool
+	// TODO(locustchen): use buffer pool
 	buf := new(bytes.Buffer)
-	err := connack.Write(buf)
+	err := connAck.Write(buf)
 	if err != nil {
 		return err
 	}

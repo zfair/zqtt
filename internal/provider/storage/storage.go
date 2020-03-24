@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/zfair/zqtt/internal/config"
-
 	"github.com/zfair/zqtt/internal/topic"
 )
 
@@ -17,11 +16,12 @@ type QueryOptions struct {
 	offset int       // query offset
 }
 
+// Storage interface for storage providers.
 type Storage interface {
 	io.Closer
-	// Storage implements a config provider
+	// Storage implements a config provider.
 	config.Provider
-	// Store message to the storage instance
+	// Store message to the storage instance.
 	Store(ctx context.Context, m *topic.Message) error
 
 	// query message from storage

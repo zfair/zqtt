@@ -57,7 +57,7 @@ func (p *program) Start() error {
 	p.server = server
 
 	go func() {
-		err := p.server.Main()
+		err := p.server.Start()
 		if err != nil {
 			_ = p.Stop()
 			os.Exit(1)

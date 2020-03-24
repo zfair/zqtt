@@ -13,24 +13,24 @@ import (
 	"go.uber.org/zap"
 )
 
-var _ storage.Storage = new(PostgresStorage)
+var _ storage.Storage = new(Storage)
 
-type PostgresStorage struct {
+type Storage struct {
 	logger *zap.Logger
 	db     *sql.DB
 }
 
-func NewPostgresStorage(logger *zap.Logger) *PostgresStorage {
-	return &PostgresStorage{
+func NewStorage(logger *zap.Logger) *Storage {
+	return &Storage{
 		logger: logger,
 	}
 }
 
-func (s *PostgresStorage) Name() string {
+func (s *Storage) Name() string {
 	return "postgres"
 }
 
-func (s *PostgresStorage) Configure(config map[string]interface{}) error {
+func (s *Storage) Configure(config map[string]interface{}) error {
 	var sb strings.Builder
 	dbname, ok := config["dbname"]
 	if ok {
@@ -90,16 +90,16 @@ func (s *PostgresStorage) Configure(config map[string]interface{}) error {
 	if err != nil {
 		return err
 	}
-	// TODO: SetMaxIdelConn and SetMaxOpenConn
+	// TODO: SetMaxIdleConn and SetMaxOpenConn
 	s.db = db
 	return nil
 }
 
-func (s *PostgresStorage) Close() error {
+func (s *Storage) Close() error {
 	return s.db.Close()
 }
 
-func (s *PostgresStorage) Store(ctx context.Context, m *topic.Message) error {
+func (s *Storage) Store(ctx context.Context, m *topic.Message) error {
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
 		return err
@@ -125,6 +125,6 @@ func (s *PostgresStorage) Store(ctx context.Context, m *topic.Message) error {
 	return nil
 }
 
-func (s *PostgresStorage) Query(ctx context.Context, topic string, ssid string, opts storage.QueryOptions) ([]topic.Message, error) {
+func (s *Storage) Query(ctx context.Context, topic string, ssid string, opts storage.QueryOptions) ([]topic.Message, error) {
 	return nil, nil
 }

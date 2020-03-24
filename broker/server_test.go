@@ -1,28 +1,20 @@
 package broker
 
 import (
-	MQTT "github.com/eclipse/paho.mqtt.golang"
 	"testing"
+
+	MQTT "github.com/eclipse/paho.mqtt.golang"
 )
 
-const TestBrokerAddress = "tcp://127.0.0.1:9798"
-
-// func newTestServer(
-// 	tcpAderess string,
-// ) (*Server, error) {
-// 	config := config.NewConfig()
-// 	config.TCPAddress = tcpAderess
-
-// 	return NewServer(config)
-// }
+const testBrokerAddress = "tcp://127.0.0.1:9798"
 
 func newTestClient(
-	brokerAddress string,
+	brokerAddr string,
 	password string,
 	username string,
 ) MQTT.Client {
 	opts := MQTT.NewClientOptions()
-	opts.AddBroker(brokerAddress)
+	opts.AddBroker(brokerAddr)
 	opts.SetUsername(username)
 	opts.SetPassword(password)
 
@@ -32,12 +24,12 @@ func newTestClient(
 
 func TestConnectToBroker(t *testing.T) {
 	client := newTestClient(
-		TestBrokerAddress,
+		testBrokerAddress,
 		"test",
 		"test",
 	)
 
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		t.Fatalf("err: %#v\n", token.Error())
+		t.Fatal(token.Error())
 	}
 }

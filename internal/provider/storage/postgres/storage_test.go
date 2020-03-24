@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/spaolacci/murmur3"
-	"github.com/zfair/zqtt/internal/topic"
-
 	"go.uber.org/zap"
+
+	"github.com/zfair/zqtt/internal/topic"
 )
 
 func parseTopic(topic string) []uint64 {
@@ -38,16 +38,16 @@ func TestPostgresStorage(t *testing.T) {
 		"sslmode":         "disable",
 		"connect_timeout": float64(10),
 	}
-	storage := NewPostgresStorage(logger)
+	storage := NewStorage(logger)
 	err = storage.Configure(config)
 	if err != nil {
 		t.Fatal(err)
 	}
-	uuid, err := uuid.NewRandom()
+	uid, err := uuid.NewRandom()
 	if err != nil {
 		t.Fatal(err)
 	}
-	guid := uuid.String()
+	guid := uid.String()
 	clientID := "test"
 	messageID := uint16(0)
 	topicName := "foo/bar"
