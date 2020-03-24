@@ -15,6 +15,7 @@ type tcpServer struct {
 	conns  sync.Map
 }
 
+// Handle a upcoming connection.
 func (p *tcpServer) Handle(clientConn net.Conn) {
 	p.server.logger.Info("TCP: new client", zap.String("remoteAddr", clientConn.RemoteAddr().String()))
 
@@ -37,17 +38,20 @@ func (p *tcpServer) Handle(clientConn net.Conn) {
 	p.conns.Delete(conn.LUID())
 }
 
+// CloseAll closes all connections.
 func (p *tcpServer) CloseAll() {
 	p.conns.Range(func(k, v interface{}) bool {
-		v.(*Conn).Close()
+		_ = v.(*Conn).Close()
 		return true
 	})
 }
 
+// TCPHandler is the interface for handling TCP connections.
 type TCPHandler interface {
 	Handle(net.Conn)
 }
 
+// TCPServer creates a new TCP server.
 func TCPServer(listener net.Listener, handler TCPHandler, logger *zap.Logger) error {
 	logger.Info("TCPServer listening", zap.String("addr", listener.Addr().String()))
 
@@ -56,7 +60,7 @@ func TCPServer(listener net.Listener, handler TCPHandler, logger *zap.Logger) er
 	for {
 		clientConn, err := listener.Accept()
 		if err != nil {
-			if nerr, ok := err.(net.Error); ok && nerr.Temporary() {
+			if err, ok := err.(net.Error); ok && err.Temporary() {
 				logger.Warn("TCPServer temporary Accept() failure", zap.Error(err))
 				runtime.Gosched()
 				continue
@@ -74,7 +78,7 @@ func TCPServer(listener net.Listener, handler TCPHandler, logger *zap.Logger) er
 		}()
 	}
 
-	// wait to return until all handler goroutines complete
+	// Waits until all handler goroutines finished.
 	wg.Wait()
 
 	logger.Info("TCPServer closing", zap.String("addr", listener.Addr().String()))

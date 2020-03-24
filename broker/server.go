@@ -11,8 +11,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// Server that backs the broker.
 type Server struct {
-	connections int64 // The number of currently open connections.
+	connCount int64
 
 	config atomic.Value
 
@@ -27,12 +28,12 @@ type Server struct {
 	waitGroup util.WaitGroupWrapper
 }
 
-func (s *Server) incConnections() {
-	atomic.AddInt64(&s.connections, 1)
+func (s *Server) incrConnCount() {
+	atomic.AddInt64(&s.connCount, 1)
 }
 
-func (s *Server) decConnections() {
-	atomic.AddInt64(&s.connections, -1)
+func (s *Server) decrConnCount() {
+	atomic.AddInt64(&s.connCount, -1)
 }
 
 func (s *Server) getCfg() *config.Config {
@@ -43,8 +44,8 @@ func (s *Server) swapCfg(config *config.Config) {
 	s.config.Store(config)
 }
 
+// NewServer creates a new server.
 func NewServer(config *config.Config) (*Server, error) {
-
 	var err error
 
 	if config.Logger == nil {
@@ -73,13 +74,14 @@ func NewServer(config *config.Config) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) Main() error {
+// Start the server.
+func (s *Server) Start() error {
 	exitCh := make(chan error)
 	var once sync.Once
 	exitFunc := func(err error) {
 		once.Do(func() {
 			if err != nil {
-				s.logger.Fatal("Main exit error", zap.Error(err))
+				s.logger.Fatal("Start error", zap.Error(err))
 			}
 			exitCh <- err
 		})
@@ -94,9 +96,10 @@ func (s *Server) Main() error {
 	return err
 }
 
+// Exit terminates the server.
 func (s *Server) Exit() {
 	if s.tcpListener != nil {
-		s.tcpListener.Close()
+		_ = s.tcpListener.Close()
 	}
 	if s.tcpServer != nil {
 		s.tcpServer.CloseAll()

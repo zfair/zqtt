@@ -12,8 +12,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// Config for internal/customizable configurations.
 type Config struct {
-	// basic options
+	// Basic options.
 	NodeID int64 `yaml:"nodeID"`
 	Logger *zap.Logger
 
@@ -23,7 +24,7 @@ type Config struct {
 	HTTPClientConnectTimeout time.Duration `yaml:"httpClientConnectTimeout"`
 	HTTPClientRequestTimeout time.Duration `yaml:"httpClientRequestTimeout"`
 
-	// msg and command options
+	// Message and command options.
 	MsgTimeout       time.Duration `yaml:"msgTimeout"`
 	MaxMsgTimeout    time.Duration `yaml:"maxMsgTimeout"`
 	MaxMsgSize       int64         `yaml:"maxMsgSize"`
@@ -31,22 +32,26 @@ type Config struct {
 	MaxReqTimeout    time.Duration `yaml:"maxReqTimeout"`
 	HeartbeatTimeout time.Duration `yaml:"heartbeatTimeout"`
 
-	// client overridable configuration options
+	// Customizable configuration options.
 	MaxHeartbeatInterval   time.Duration `yaml:"maxHeartbeatInterval"`
 	MaxOutputBufferSize    int64         `yaml:"maxOutputBufferSize"`
 	MaxOutputBufferTimeout time.Duration `yaml:"maxOutputBufferTimeout"`
 	MinOutputBufferTimeout time.Duration `yaml:"minOutputBufferTimeout"`
 	FlushInterval          time.Duration `yaml:"flushInterval"`
 
-	// TLS config
+	// TLS config.
 	TLSCert             string `yaml:"tlsCert"`
 	TLSKey              string `yaml:"tlsKey"`
 	TLSClientAuthPolicy string `yaml:"tlsClientAuthPolicy"`
 	TLSRootCAFile       string `yaml:"tlsRootCaFile"`
 	TLSRequired         int    `yaml:"tlsRequired"`
 	TLSMinVersion       uint16 `yaml:"tlsMinVersion"`
+
+	// Storage config.
+	Storage *ProviderInfo
 }
 
+// NewConfig creates a new config.
 func NewConfig() *Config {
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -54,13 +59,13 @@ func NewConfig() *Config {
 	}
 
 	h := md5.New()
-	io.WriteString(h, hostname)
+	_, _ = io.WriteString(h, hostname)
 	defaultID := int64(crc32.ChecksumIEEE(h.Sum(nil)) % 1024)
 
 	return &Config{
 		NodeID: defaultID,
 
-		TCPAddress:   "0.0.0.0:9798",
+		TCPAddress:   "127.0.0.1:9798",
 		HTTPAddress:  "0.0.0.0:9799",
 		HTTPSAddress: "0.0.0.0:9800",
 
@@ -82,4 +87,16 @@ func NewConfig() *Config {
 
 		TLSMinVersion: tls.VersionTLS10,
 	}
+}
+
+// Provider is the config provider interface.
+type Provider interface {
+	Name() string
+	Configure(config map[string]interface{}) error
+}
+
+// ProviderInfo is the info of a config provider.
+type ProviderInfo struct {
+	Provider string                 `yaml:"provider"`
+	Config   map[string]interface{} `yaml:"config,omitempty"`
 }
