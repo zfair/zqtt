@@ -5,8 +5,6 @@ import (
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
 	"github.com/zfair/zqtt/zerrors"
-
-	"github.com/spaolacci/murmur3"
 )
 
 type SubscriberType int8
@@ -17,8 +15,8 @@ const (
 )
 
 var (
-	SingleWildcard = murmur3.Sum64([]byte("+"))
-	MultiWildcard  = murmur3.Sum64([]byte("#"))
+	SingleWildcard = Sum64([]byte("+"))
+	MultiWildcard  = Sum64([]byte("#"))
 )
 
 type Subscriber interface {

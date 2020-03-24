@@ -14,7 +14,7 @@ func parseTopic(topic string) []uint64 {
 	parts := strings.Split(topic, "/")
 	ssid := make([]uint64, len(parts))
 	for i, part := range parts {
-		v := murmur3.Sum64([]byte(part))
+		v := Sum64([]byte(part))
 		ssid[i] = v
 	}
 	return ssid

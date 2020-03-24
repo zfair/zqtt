@@ -31,7 +31,7 @@ type Conn struct {
 	writerLock sync.Mutex
 
 	HeartbeatTimeout time.Duration
-	FlushInterval time.Duration
+	FlushInterval    time.Duration
 
 	ExitChan chan int
 	sendChan chan []byte

@@ -6,17 +6,16 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/spaolacci/murmur3"
 	"go.uber.org/zap"
 
 	"github.com/zfair/zqtt/internal/topic"
 )
 
-func parseTopic(topic string) []uint64 {
-	parts := strings.Split(topic, "/")
+func parseTopic(topicName string) []uint64 {
+	parts := strings.Split(topicName, "/")
 	ssid := make([]uint64, len(parts))
 	for i, part := range parts {
-		v := murmur3.Sum64([]byte(part))
+		v := topic.Sum64([]byte(part))
 		ssid[i] = v
 	}
 	return ssid
