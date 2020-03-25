@@ -14,11 +14,6 @@ const (
 	SubscriberTypeRemote
 )
 
-var (
-	SingleWildcard = Sum64([]byte("+"))
-	MultiWildcard  = Sum64([]byte("#"))
-)
-
 type Subscriber interface {
 	ID() uint64
 	Type() SubscriberType
@@ -167,14 +162,14 @@ func (t *SubTrie) doLookup(n *node, query []uint64, subs Subscribers) {
 	}
 
 	// fetch multi wildcard node
-	if mwcn, ok := n.children[MultiWildcard]; ok {
+	if mwcn, ok := n.children[MultiWildcardHash]; ok {
 		mwcn.RLock()
 		subs.AddRange(mwcn.subs)
 		mwcn.RUnlock()
 	}
 
 	// dfs lookup single wildcard
-	if swcn, ok := n.children[SingleWildcard]; ok {
+	if swcn, ok := n.children[SingleWildcardHash]; ok {
 		t.doLookup(swcn, query[1:], subs)
 	}
 

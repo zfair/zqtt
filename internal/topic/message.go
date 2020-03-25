@@ -1,5 +1,13 @@
 package topic
 
+const SingleWildcard = "+"
+const MultiWildcard = "#"
+
+var (
+	SingleWildcardHash = Sum64([]byte(SingleWildcard))
+	MultiWildcardHash  = Sum64([]byte(MultiWildcard))
+)
+
 type Message struct {
 	MessageSeq int64
 	GUID       string // internal unique id of this message
@@ -8,7 +16,7 @@ type Message struct {
 	TopicName  string // the origin topic name of this message
 	Ssid       []uint64
 	Qos        byte // qos of this message
-	TTL        int
+	TTLUntil   int64
 	Payload    []byte
 }
 
@@ -19,7 +27,7 @@ func NewMessage(
 	topicName string,
 	ssid []uint64,
 	qos byte,
-	ttl int,
+	ttlUntil int64,
 	payload []byte,
 ) *Message {
 	return &Message{
@@ -29,7 +37,7 @@ func NewMessage(
 		TopicName: topicName,
 		Ssid:      ssid,
 		Qos:       qos,
-		TTL:       ttl,
+		TTLUntil:  ttlUntil,
 		Payload:   payload,
 	}
 }

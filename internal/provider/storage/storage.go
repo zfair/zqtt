@@ -10,10 +10,11 @@ import (
 )
 
 type QueryOptions struct {
-	from   time.Time // query message save time from unix seconds
-	until  time.Time // query message save time until unix seconds
-	limit  int       // query limit
-	offset int       // query offset
+	TTLUntil int64
+	From     time.Time // query message save time from unix seconds
+	Until    time.Time // query message save time until unix seconds
+	Limit    uint64    // query limit
+	Offset   uint64    // query offset
 }
 
 // Storage interface for storage providers.
