@@ -22,12 +22,12 @@ var identPattern = regexp.MustCompile(identPatternString)
 //
 // IDENT : [\-_0-9a-zA-Z]+ ;
 //
-// topic : (channel | '#') query? EOF
+// topic : (part | '#') query? EOF
 //       ;
 //
-// channel : IDENT ('/' channel | '/' '#')?
-// 		   | '+' ('/' channel)?
-//         ;
+// part : IDENT ('/' part | '/' '#')?
+// 		| '+' ('/' part)?
+//      ;
 //
 // query : '?' query_kv
 //       ;
@@ -42,8 +42,8 @@ type Parser struct {
 	options []*option
 }
 
-// New creates a new topic parser.
-func New(srcTxt string) *Parser {
+// NewParser creates a new topic parser.
+func NewParser(srcTxt string) *Parser {
 	return &Parser{
 		srcTxt: srcTxt,
 	}
@@ -122,5 +122,17 @@ func (p *Parser) scanOptions(optsTxt string) error {
 		p.options = append(p.options, &option{Key: key, Value: value})
 	}
 
+	return nil
+}
+
+func (p *Parser) parseTopic() error {
+	return nil
+}
+
+func (p *Parser) parsePart() error {
+	return nil
+}
+
+func (p *Parser) parseQuery() error {
 	return nil
 }
