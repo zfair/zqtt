@@ -143,7 +143,7 @@ func (s *Storage) queryParse(topicName string, opts storage.QueryOptions) (strin
 		sqlBuilder = sqlBuilder.Where("created_at >= ?", opts.From)
 	}
 	if opts.Until != zeroTime {
-		sqlBuilder = sqlBuilder.Where("created_at < ?", opts.From)
+		sqlBuilder = sqlBuilder.Where("created_at < ?", opts.Until)
 	}
 
 	parts := strings.Split(topicName, "/")
