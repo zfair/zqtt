@@ -11,7 +11,7 @@ Zqtt, a MQTT broker.
 Build from source.
 
 ```bash
-$ go build ./...
+$ go build -o . ./...
 ```
 
 ## License
