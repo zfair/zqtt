@@ -26,7 +26,7 @@ var identPattern = regexp.MustCompile(identPatternString)
 //       ;
 //
 // part : IDENT ('/' part | '/' '#')?
-// 		| '+' ('/' part)?
+//      | '+' ('/' part)?
 //      ;
 //
 // query : '?' query_kv
