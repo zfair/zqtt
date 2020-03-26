@@ -38,8 +38,8 @@ func (s *testSubscriber) ID() uint64 {
 	return s.id
 }
 
-func (s *testSubscriber) Type() SubscriberType {
-	return SubscriberTypeLocal
+func (s *testSubscriber) Kind() SubscriberKind {
+	return SubscriberKindLocal
 }
 
 func (s *testSubscriber) Send(packets.ControlPacket) error {
@@ -451,7 +451,7 @@ func TestUnsubscribe(t *testing.T) {
 			assert.Equal(id, sub.ID())
 		}
 		// unsubscribe
-		err := trie.UnSubscribe(
+		err := trie.Unsubscribe(
 			parseTopic(c.unsubscribeTopic),
 			newTestSubscriber(toTestID(c.unsubscribeTopic)),
 		)

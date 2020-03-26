@@ -114,7 +114,7 @@ func (s *Storage) Store(ctx context.Context, m *topic.Message) error {
 		ctx,
 		`INSERT INTO message(guid, client_id, message_id, topic, ssid, ssid_len, ttl_until, qos, payload) 
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		m.GUID, m.ClientID, m.MessageID, m.TopicName, ssidStringArray, len(m.Ssid), m.TTLUntil, m.Qos, string(m.Payload),
+		m.GUID, m.ClientID, m.MessageID, m.TopicName, ssidStringArray, len(m.Ssid), m.TtlUntil, m.Qos, string(m.Payload),
 	)
 	if err != nil {
 		return err
