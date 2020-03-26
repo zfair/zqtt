@@ -13,8 +13,8 @@ import (
 	"github.com/judwhite/go-svc/svc"
 	"gopkg.in/yaml.v2"
 
-	"github.com/zfair/zqtt/broker"
-	"github.com/zfair/zqtt/internal/config"
+	"github.com/zfair/zqtt/src/broker"
+	"github.com/zfair/zqtt/src/config"
 )
 
 type program struct {

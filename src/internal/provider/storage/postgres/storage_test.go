@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 
-	"github.com/zfair/zqtt/internal/provider/storage"
-	"github.com/zfair/zqtt/internal/topic"
+	"github.com/zfair/zqtt/src/internal/provider/storage"
+	"github.com/zfair/zqtt/src/internal/topic"
 )
 
 func parseTopic(topicName string) []uint64 {

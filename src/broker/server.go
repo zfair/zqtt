@@ -6,8 +6,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/zfair/zqtt/internal/config"
-	"github.com/zfair/zqtt/internal/util"
+	"github.com/zfair/zqtt/src/config"
+	"github.com/zfair/zqtt/src/internal/util"
 	"go.uber.org/zap"
 )
 

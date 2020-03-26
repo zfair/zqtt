@@ -9,10 +9,11 @@ import (
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
-	pq "github.com/lib/pq"
-	"github.com/zfair/zqtt/internal/provider/storage"
-	"github.com/zfair/zqtt/internal/topic"
+	"github.com/lib/pq"
 	"go.uber.org/zap"
+
+	"github.com/zfair/zqtt/src/internal/provider/storage"
+	"github.com/zfair/zqtt/src/internal/topic"
 )
 
 var _ storage.Storage = new(Storage)

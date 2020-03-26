@@ -8,7 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
-	_ "github.com/zfair/zqtt/internal/topic"
+	_ "github.com/zfair/zqtt/src/internal/topic"
 )
 
 func (c *Conn) messagePump(startedChan chan int) error {

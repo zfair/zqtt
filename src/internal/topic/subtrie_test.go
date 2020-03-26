@@ -7,7 +7,7 @@ import (
 	"github.com/eclipse/paho.mqtt.golang/packets"
 	"github.com/spaolacci/murmur3"
 	"github.com/stretchr/testify/assert"
-	"github.com/zfair/zqtt/zerrors"
+	"github.com/zfair/zqtt/src/zerr"
 )
 
 func parseTopic(topic string) []uint64 {
@@ -243,7 +243,7 @@ func TestUnsubscribe(t *testing.T) {
 		{
 			// subscriber of "#" topic has been unsubscribe
 			unsubscribeTopic: "#",
-			unsubscribeErr:   zerrors.ErrSSIDNotFound,
+			unsubscribeErr:   zerr.ErrSSIDNotFound,
 			lookupSSID:       parseTopic("a"),
 			beforeMatchCount: 1,
 			beforeMatchIDs: []uint64{
@@ -268,7 +268,7 @@ func TestUnsubscribe(t *testing.T) {
 		{
 			// subscriber of "#" topic has been unsubscribe
 			unsubscribeTopic: "#",
-			unsubscribeErr:   zerrors.ErrSSIDNotFound,
+			unsubscribeErr:   zerr.ErrSSIDNotFound,
 			lookupSSID:       parseTopic("a/b"),
 			beforeMatchCount: 0,
 			beforeMatchIDs:   []uint64{},
@@ -278,7 +278,7 @@ func TestUnsubscribe(t *testing.T) {
 		{
 			// subscriber of "#" topic has been unsubscribe
 			unsubscribeTopic: "#",
-			unsubscribeErr:   zerrors.ErrSSIDNotFound,
+			unsubscribeErr:   zerr.ErrSSIDNotFound,
 			lookupSSID:       parseTopic("hello/world"),
 			beforeMatchCount: 2,
 			beforeMatchIDs: []uint64{
@@ -318,7 +318,7 @@ func TestUnsubscribe(t *testing.T) {
 		},
 		{
 			unsubscribeTopic: "hello/+",
-			unsubscribeErr:   zerrors.ErrSubscriberNotFound,
+			unsubscribeErr:   zerr.ErrSubscriberNotFound,
 			lookupSSID:       parseTopic("hello/world"),
 			beforeMatchCount: 0,
 			beforeMatchIDs:   []uint64{},
@@ -327,7 +327,7 @@ func TestUnsubscribe(t *testing.T) {
 		},
 		{
 			unsubscribeTopic: "hello/+",
-			unsubscribeErr:   zerrors.ErrSubscriberNotFound,
+			unsubscribeErr:   zerr.ErrSubscriberNotFound,
 			lookupSSID:       parseTopic("hello/world/zqtt"),
 			beforeMatchCount: 1,
 			beforeMatchIDs: []uint64{
@@ -352,7 +352,7 @@ func TestUnsubscribe(t *testing.T) {
 		{
 			// after remove "hello/+/zqtt", node "hello/+" becomes an orphan
 			unsubscribeTopic: "hello/+",
-			unsubscribeErr:   zerrors.ErrSSIDNotFound,
+			unsubscribeErr:   zerr.ErrSSIDNotFound,
 			lookupSSID:       parseTopic("hello/world"),
 			beforeMatchCount: 0,
 			beforeMatchIDs:   []uint64{},
@@ -362,7 +362,7 @@ func TestUnsubscribe(t *testing.T) {
 		{
 			// repeat
 			unsubscribeTopic: "hello/+",
-			unsubscribeErr:   zerrors.ErrSSIDNotFound,
+			unsubscribeErr:   zerr.ErrSSIDNotFound,
 			lookupSSID:       parseTopic("hello/world"),
 			beforeMatchCount: 0,
 			beforeMatchIDs:   []uint64{},
@@ -397,7 +397,7 @@ func TestUnsubscribe(t *testing.T) {
 		{
 			// repeat
 			unsubscribeTopic: "hello/mqtt/+",
-			unsubscribeErr:   zerrors.ErrSubscriberNotFound,
+			unsubscribeErr:   zerr.ErrSubscriberNotFound,
 			lookupSSID:       parseTopic("hello/mqtt/ohh"),
 			beforeMatchCount: 0,
 			beforeMatchIDs:   []uint64{},
@@ -406,7 +406,7 @@ func TestUnsubscribe(t *testing.T) {
 		},
 		{
 			unsubscribeTopic: "hello/mqtt/#",
-			unsubscribeErr:   zerrors.ErrSSIDNotFound,
+			unsubscribeErr:   zerr.ErrSSIDNotFound,
 			lookupSSID:       parseTopic("hello/mqtt/ohh"),
 			beforeMatchCount: 0,
 			beforeMatchIDs:   []uint64{},
@@ -415,7 +415,7 @@ func TestUnsubscribe(t *testing.T) {
 		},
 		{
 			unsubscribeTopic: "hello/mqtt/#",
-			unsubscribeErr:   zerrors.ErrSSIDNotFound,
+			unsubscribeErr:   zerr.ErrSSIDNotFound,
 			lookupSSID:       parseTopic("hello/mqtt/bilibili/acfun"),
 			beforeMatchCount: 1,
 			beforeMatchIDs: []uint64{

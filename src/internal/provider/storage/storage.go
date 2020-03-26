@@ -5,8 +5,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/zfair/zqtt/internal/config"
-	"github.com/zfair/zqtt/internal/topic"
+	"github.com/zfair/zqtt/src/config"
+	"github.com/zfair/zqtt/src/internal/topic"
 )
 
 type QueryOptions struct {

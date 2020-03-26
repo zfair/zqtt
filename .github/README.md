@@ -6,6 +6,14 @@
 
 Zqtt, a MQTT broker.
 
+## Development
+
+Build from source.
+
+```bash
+$ go build ./cmd/zqtt-cli
+```
+
 ## License
 
 MIT

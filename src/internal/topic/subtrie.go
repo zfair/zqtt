@@ -5,7 +5,7 @@ import (
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
 
-	"github.com/zfair/zqtt/zerrors"
+	"github.com/zfair/zqtt/src/zerr"
 )
 
 // SubscriberKind currently indicates the location of the subscriber node.
@@ -144,14 +144,14 @@ func (t *SubTrie) Unsubscribe(ssid []uint64, subscriber Subscriber) error {
 		child, ok := curr.children[word]
 		curr.RUnlock()
 		if !ok {
-			return zerrors.ErrSSIDNotFound
+			return zerr.ErrSSIDNotFound
 		}
 		curr = child
 	}
 	curr.Lock()
 	defer curr.Unlock()
 	if !curr.subs.Remove(subscriber) {
-		return zerrors.ErrSubscriberNotFound
+		return zerr.ErrSubscriberNotFound
 	}
 
 	if curr.subs.Size() == 0 && len(curr.children) == 0 {
