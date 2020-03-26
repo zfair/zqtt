@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
-	pq "github.com/lib/pq"
-	"github.com/zfair/zqtt/internal/provider/storage"
-	"github.com/zfair/zqtt/internal/topic"
+	sq "github.com/Masterminds/squirrel"
+	"github.com/lib/pq"
 	"go.uber.org/zap"
+
+	"github.com/zfair/zqtt/src/internal/provider/storage"
+	"github.com/zfair/zqtt/src/internal/topic"
 )
 
 var _ storage.Storage = new(Storage)
@@ -112,7 +115,7 @@ func (s *Storage) Store(ctx context.Context, m *topic.Message) error {
 		ctx,
 		`INSERT INTO message(guid, client_id, message_id, topic, ssid, ssid_len, ttl_until, qos, payload) 
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		m.GUID, m.ClientID, m.MessageID, m.TopicName, ssidStringArray, len(m.Ssid), m.TTL, m.Qos, string(m.Payload),
+		m.GUID, m.ClientID, m.MessageID, m.TopicName, ssidStringArray, len(m.Ssid), m.TtlUntil, m.Qos, string(m.Payload),
 	)
 	if err != nil {
 		return err
@@ -125,6 +128,61 @@ func (s *Storage) Store(ctx context.Context, m *topic.Message) error {
 	return nil
 }
 
-func (s *Storage) Query(ctx context.Context, topic string, ssid string, opts storage.QueryOptions) ([]topic.Message, error) {
+func (s *Storage) Query(ctx context.Context, topic string, _ssid string, opts storage.QueryOptions) ([]topic.Message, error) {
 	return nil, nil
+}
+
+func (s *Storage) queryParse(topicName string, opts storage.QueryOptions) (string, []interface{}, error) {
+	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+	sqlBuilder := psql.Select("message_seq, guid, client_id, topic, qos, payload").From("message")
+	var zeroTime time.Time
+	if opts.TTLUntil != 0 {
+		sqlBuilder = sqlBuilder.Where("ttl_until <= ?", opts.TTLUntil)
+	}
+	if opts.From != zeroTime {
+		sqlBuilder = sqlBuilder.Where("created_at >= ?", opts.From)
+	}
+	if opts.Until != zeroTime {
+		sqlBuilder = sqlBuilder.Where("created_at < ?", opts.From)
+	}
+
+	parts := strings.Split(topicName, "/")
+	// parse topic into query string
+	querySsidLen := 0
+	includeMultiWildcard := false
+	for i, part := range parts {
+		switch part {
+		case topic.MultiWildcard:
+			// if match a MultiWildcard part, break
+			// # must last part of topic name
+			includeMultiWildcard = true
+			break
+		case topic.SingleWildcard:
+			// just increase but do not set this part condition
+			querySsidLen++
+		default:
+			querySsidLen++
+			hashOfPart := topic.Sum64([]byte(part))
+			sqlBuilder = sqlBuilder.Where(fmt.Sprintf("ssid[%d] = ?", i), hashOfPart)
+
+		}
+	}
+
+	if querySsidLen > 0 {
+		if includeMultiWildcard {
+			sqlBuilder = sqlBuilder.Where("ssid_len > ?", querySsidLen)
+		} else {
+			sqlBuilder = sqlBuilder.Where("ssid_len = ?", querySsidLen)
+		}
+	}
+
+	if opts.Limit != 0 {
+		sqlBuilder = sqlBuilder.Limit(opts.Limit)
+	}
+
+	if opts.Offset != 0 {
+		sqlBuilder = sqlBuilder.Offset(opts.Offset)
+	}
+
+	return sqlBuilder.ToSql()
 }

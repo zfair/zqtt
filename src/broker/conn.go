@@ -12,9 +12,9 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/zfair/zqtt/internal/topic"
-	"github.com/zfair/zqtt/internal/util"
-	"github.com/zfair/zqtt/zerrors"
+	"github.com/zfair/zqtt/src/internal/topic"
+	"github.com/zfair/zqtt/src/internal/util"
+	"github.com/zfair/zqtt/src/zerr"
 )
 
 const defaultBufferSize = 16 * 1024
@@ -31,7 +31,7 @@ type Conn struct {
 	writerLock sync.Mutex
 
 	HeartbeatTimeout time.Duration
-	FlushInterval time.Duration
+	FlushInterval    time.Duration
 
 	ExitChan chan int
 	sendChan chan []byte
@@ -160,7 +160,7 @@ func (c Conn) Send(b []byte) error {
 	case c.sendChan <- b:
 		return nil
 	case <-c.ExitChan:
-		return zerrors.ErrConnClosed
+		return zerr.ErrConnClosed
 	}
 }
 

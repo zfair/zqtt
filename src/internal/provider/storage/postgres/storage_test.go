@@ -6,17 +6,18 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/spaolacci/murmur3"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 
-	"github.com/zfair/zqtt/internal/topic"
+	"github.com/zfair/zqtt/src/internal/provider/storage"
+	"github.com/zfair/zqtt/src/internal/topic"
 )
 
-func parseTopic(topic string) []uint64 {
-	parts := strings.Split(topic, "/")
+func parseTopic(topicName string) []uint64 {
+	parts := strings.Split(topicName, "/")
 	ssid := make([]uint64, len(parts))
 	for i, part := range parts {
-		v := murmur3.Sum64([]byte(part))
+		v := topic.Sum64([]byte(part))
 		ssid[i] = v
 	}
 	return ssid
@@ -53,7 +54,7 @@ func TestPostgresStorage(t *testing.T) {
 	topicName := "foo/bar"
 	ssid := parseTopic(topicName)
 	qos := byte(0)
-	ttl := 1
+	ttl := int64(1)
 	payload := []byte("hello world!")
 	message := topic.NewMessage(
 		guid,
@@ -68,5 +69,42 @@ func TestPostgresStorage(t *testing.T) {
 	err = storage.Store(context.Background(), message)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+type queryParseTestCase struct {
+	TopicName string
+	Options   storage.QueryOptions
+	SQL       string
+	Args      []interface{}
+	Err       error
+}
+
+func TestStorageQueryParse(t *testing.T) {
+	testCase := []queryParseTestCase{
+		{
+			TopicName: "#",
+			SQL:       "SELECT message_seq, guid, client_id, topic, qos, payload FROM message",
+		},
+		{
+			TopicName: "hello/#",
+			SQL:       "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ssid[0] = $1 AND ssid_len > $2",
+			Args:      []interface{}{topic.Sum64([]byte("hello")), 1},
+		},
+	}
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		t.Fatal(err)
+	}
+	storage := NewStorage(logger)
+	for _, c := range testCase {
+		sql, args, err := storage.queryParse(c.TopicName, c.Options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert := assert.New(t)
+		assert.Equal(c.SQL, sql)
+		assert.Equal(c.Args, args)
+
 	}
 }

@@ -4,42 +4,41 @@ import (
 	"sync"
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
-	"github.com/zfair/zqtt/zerrors"
 
-	"github.com/spaolacci/murmur3"
+	"github.com/zfair/zqtt/src/zerr"
 )
 
-type SubscriberType int8
+// SubscriberKind currently indicates the location of the subscriber node.
+type SubscriberKind int8
 
 const (
-	SubscriberTypeLocal SubscriberType = iota + 1
-	SubscriberTypeRemote
+	SubscriberKindLocal SubscriberKind = iota + 1
+	SubscriberKindRemote
 )
 
-var (
-	SingleWildcard = murmur3.Sum64([]byte("+"))
-	MultiWildcard  = murmur3.Sum64([]byte("#"))
-)
-
+// Subscriber interface for a local/remote node.
 type Subscriber interface {
 	ID() uint64
-	Type() SubscriberType
+	Kind() SubscriberKind
 	Send(packets.ControlPacket) error
 }
 
 type Subscribers map[uint64]Subscriber
 
-func newSubscrbers() Subscribers {
+func newSubscribers() Subscribers {
 	return make(Subscribers)
 }
 
-func (s *Subscribers) AddRange(from Subscribers) {
+// Merge two sets of subscribers.
+func (s *Subscribers) Merge(from Subscribers) {
 	for id, v := range from {
-		(*s)[id] = v // This would simply overwrite duplicates
+		// Insert a new one or assign an existing one.
+		(*s)[id] = v
 	}
 }
 
-func (s *Subscribers) AddSubscriber(subscriber Subscriber) bool {
+// Add a new subscriber.
+func (s *Subscribers) Add(subscriber Subscriber) bool {
 	if _, found := (*s)[subscriber.ID()]; !found {
 		(*s)[subscriber.ID()] = subscriber
 		return true
@@ -47,6 +46,7 @@ func (s *Subscribers) AddSubscriber(subscriber Subscriber) bool {
 	return false
 }
 
+// Remove a subscriber.
 func (s *Subscribers) Remove(subscriber Subscriber) bool {
 	if _, found := (*s)[subscriber.ID()]; found {
 		delete(*s, subscriber.ID())
@@ -55,10 +55,12 @@ func (s *Subscribers) Remove(subscriber Subscriber) bool {
 	return false
 }
 
+// Size of subscribers.
 func (s *Subscribers) Size() int {
 	return len(*s)
 }
 
+// node of the subscription trie.
 type node struct {
 	sync.RWMutex
 	word     uint64
@@ -68,36 +70,40 @@ type node struct {
 }
 
 func (n *node) orphan() {
-	// No Need n.RLock()
-	// in SubTrie method, all method did not modify node.parent and node.word after new node
+	// No need to n.RLock() in SubTrie method, since all methods do not modify
+	// node.parent and node.word after new nodes.
 	if n.parent == nil {
 		return
 	}
 	n.parent.Lock()
-	//  It's safe to do this even if the key is already absent from the map
+	// It's safe to do this even if the key is already absent from the map.
 	delete(n.parent.children, n.word)
 	if n.parent.subs.Size() == 0 && len(n.parent.children) == 0 {
 		n.parent.Unlock()
+		// TODO: Avoid recursion.
 		n.parent.orphan()
 	} else {
 		n.parent.Unlock()
 	}
 }
 
+// SubTrie is the subscription trie.
 type SubTrie struct {
 	sync.RWMutex
 	root *node
 }
 
+// NewSubTrie creates a new subscription trie.
 func NewSubTrie() *SubTrie {
 	return &SubTrie{
 		root: &node{
-			subs:     newSubscrbers(),
+			subs:     newSubscribers(),
 			children: make(map[uint64]*node),
 		},
 	}
 }
 
+// Subscribe a specific topic by SSID.
 func (t *SubTrie) Subscribe(ssid []uint64, subscriber Subscriber) error {
 	curr := t.root
 	for _, word := range ssid {
@@ -105,14 +111,14 @@ func (t *SubTrie) Subscribe(ssid []uint64, subscriber Subscriber) error {
 		child, ok := curr.children[word]
 		curr.RUnlock()
 		if !ok {
-			// lock write lock
+			// Lock write lock.
 			curr.Lock()
-			// double check
+			// Double check.
 			child, ok = curr.children[word]
 			if !ok {
 				child = &node{
 					word:     word,
-					subs:     newSubscrbers(),
+					subs:     newSubscribers(),
 					parent:   curr,
 					children: make(map[uint64]*node),
 				}
@@ -124,38 +130,40 @@ func (t *SubTrie) Subscribe(ssid []uint64, subscriber Subscriber) error {
 	}
 
 	curr.Lock()
-	curr.subs.AddSubscriber(subscriber)
+	curr.subs.Add(subscriber)
 	curr.Unlock()
 
 	return nil
 }
 
-func (t *SubTrie) UnSubscribe(ssid []uint64, subscriber Subscriber) error {
+// Unsubscribe a topic by SSID.
+func (t *SubTrie) Unsubscribe(ssid []uint64, subscriber Subscriber) error {
 	curr := t.root
 	for _, word := range ssid {
 		curr.RLock()
 		child, ok := curr.children[word]
 		curr.RUnlock()
 		if !ok {
-			return zerrors.ErrSSIDNotFound
+			return zerr.ErrSSIDNotFound
 		}
 		curr = child
 	}
 	curr.Lock()
 	defer curr.Unlock()
 	if !curr.subs.Remove(subscriber) {
-		return zerrors.ErrSubscriberNotFound
+		return zerr.ErrSubscriberNotFound
 	}
 
 	if curr.subs.Size() == 0 && len(curr.children) == 0 {
-		// TODO: maybe we can go curr.orphan()
+		// TODO(locustchen): Maybe we can `go curr.orphan()`
 		curr.orphan()
 	}
 	return nil
 }
 
+// Lookup the subscribers on a specific topic.
 func (t *SubTrie) Lookup(ssid []uint64) Subscribers {
-	subs := newSubscrbers()
+	subs := newSubscribers()
 	t.doLookup(t.root, ssid, subs)
 	return subs
 }
@@ -164,23 +172,25 @@ func (t *SubTrie) doLookup(n *node, query []uint64, subs Subscribers) {
 	n.RLock()
 	defer n.RUnlock()
 	if len(query) == 0 {
-		subs.AddRange(n.subs)
+		subs.Merge(n.subs)
 		return
 	}
 
-	// fetch multi wildcard node
-	if mwcn, ok := n.children[MultiWildcard]; ok {
-		mwcn.RLock()
-		subs.AddRange(mwcn.subs)
-		mwcn.RUnlock()
+	// Fetch multi-wildcard node.
+	if mwNode, ok := n.children[MultiWildcardHash]; ok {
+		mwNode.RLock()
+		subs.Merge(mwNode.subs)
+		mwNode.RUnlock()
 	}
 
-	// dfs lookup single wildcard
-	if swcn, ok := n.children[SingleWildcard]; ok {
-		t.doLookup(swcn, query[1:], subs)
+	// DFS lookup single wildcard.
+	if swNode, ok := n.children[SingleWildcardHash]; ok {
+		// TODO: Avoid recursion.
+		t.doLookup(swNode, query[1:], subs)
 	}
 
-	if matchn, ok := n.children[query[0]]; ok {
-		t.doLookup(matchn, query[1:], subs)
+	if matchNode, ok := n.children[query[0]]; ok {
+		// TODO: Avoid recursion.
+		t.doLookup(matchNode, query[1:], subs)
 	}
 }

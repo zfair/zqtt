@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/BurntSushi/toml v0.3.1
+	github.com/Masterminds/squirrel v1.2.0
 	github.com/eclipse/paho.mqtt.golang v1.2.0
 	github.com/google/uuid v1.1.1
 	github.com/judwhite/go-svc v1.1.2
@@ -13,5 +14,6 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0
 	github.com/stretchr/testify v1.4.0
 	go.uber.org/zap v1.14.1
+	gopkg.in/go-playground/assert.v1 v1.2.1
 	gopkg.in/yaml.v2 v2.2.2
 )

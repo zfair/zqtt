@@ -1,4 +1,5 @@
-package zerrors
+// Package zerr contains all project-wide errors.
+package zerr
 
 import "github.com/pkg/errors"
 
