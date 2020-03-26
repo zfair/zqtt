@@ -54,7 +54,7 @@ func (p *Parser) Parse() (*Topic, error) {
 	if err := p.scan(); err != nil {
 		return nil, err
 	}
-	return nil, nil
+	return nil,nil
 }
 
 func (p *Parser) scan() error {
