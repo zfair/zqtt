@@ -32,7 +32,7 @@ func TestParseOK(t *testing.T) {
 	}
 }
 
-func TestParserFail(t *testing.T) {
+func TestParseFail(t *testing.T) {
 	assertion := assert.New(t)
 	topics := []string{
 		"",
