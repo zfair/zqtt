@@ -7,7 +7,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const identPatternString = `[\-_0-9a-zA-Z]+`
+const identPatternString = `^[\-_0-9a-zA-Z]+$`
 
 var identPattern = regexp.MustCompile(identPatternString)
 
@@ -54,7 +54,39 @@ func (p *Parser) Parse() (*Topic, error) {
 	if err := p.scan(); err != nil {
 		return nil, err
 	}
-	return nil, nil
+
+	if err := p.parseTopic(); err != nil {
+		return nil, err
+	}
+
+	if p.cur() != nil {
+		return nil, errors.Errorf("Expected EOF, found '%v'", *p.cur())
+	}
+
+	opts := make(map[string]string)
+	for _, opt := range p.options {
+		opts[opt.Key] = opt.Value
+	}
+
+	return &Topic{parts: p.parts, options: opts}, nil
+}
+
+func (p *Parser) advance() {
+	p.pos++
+}
+
+func (p *Parser) cur() *part {
+	if pos := p.pos; pos < len(p.parts) {
+		return &p.parts[pos]
+	}
+	return nil
+}
+
+func (p *Parser) lookahead() *part {
+	if pos := p.pos + 1; pos < len(p.parts) {
+		return &p.parts[pos]
+	}
+	return nil
 }
 
 func (p *Parser) scan() error {
@@ -126,13 +158,53 @@ func (p *Parser) scanOptions(optsTxt string) error {
 }
 
 func (p *Parser) parseTopic() error {
+	cur := p.cur()
+	if cur == nil {
+		return errors.New("Unexpected empty topic string")
+	}
+
+	switch (*cur).(type) {
+	case partMultiWildcard:
+		p.advance()
+	default:
+		if err := p.parsePart(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
 func (p *Parser) parsePart() error {
-	return nil
-}
+	for p.cur() != nil {
+		cur := p.cur()
 
-func (p *Parser) parseQuery() error {
+		switch (*cur).(type) {
+		case partName:
+			p.advance()
+			cur := p.cur()
+
+			if cur == nil {
+				p.advance()
+				goto exit
+			}
+
+			if _, ok := (*cur).(partMultiWildcard); ok {
+				p.advance()
+				goto exit
+			}
+		case partSingleWildcard:
+			if p.lookahead() == nil {
+				p.advance()
+				goto exit
+			}
+
+			p.advance()
+		default:
+			return errors.Errorf("Invalid topic part '%v'", *cur)
+		}
+	}
+
+exit:
 	return nil
 }
