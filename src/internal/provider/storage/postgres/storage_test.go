@@ -40,8 +40,8 @@ func TestPostgresStorage(t *testing.T) {
 		"sslmode":         "disable",
 		"connect_timeout": float64(10),
 	}
-	storage := NewStorage(logger)
-	err = storage.Configure(config)
+	store := NewStorage(logger)
+	err = store.Configure(config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestPostgresStorage(t *testing.T) {
 		ttl,
 		payload,
 	)
-	err = storage.Store(context.Background(), message)
+	err = store.Store(context.Background(), message)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,15 +164,15 @@ func TestStorageQueryParse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	storage := NewStorage(logger)
+	store := NewStorage(logger)
 	for _, c := range testCase {
-		sql, args, err := storage.queryParse(c.TopicName, c.Options)
+		sql, args, err := store.queryParse(c.TopicName, c.Options)
 		if err != nil {
 			t.Fatal(err)
 		}
-		assert := assert.New(t)
-		assert.Equal(c.SQL, sql)
-		assert.Equal(c.Args, args)
+		assertion := assert.New(t)
+		assertion.Equal(c.SQL, sql)
+		assertion.Equal(c.Args, args)
 
 	}
 }
