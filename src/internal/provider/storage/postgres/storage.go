@@ -59,7 +59,6 @@ func (s *Storage) Configure(config map[string]interface{}) error {
 	}
 
 	connStr := sb.String()
-	fmt.Printf(connStr)
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return err
