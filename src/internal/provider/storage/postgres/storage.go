@@ -16,7 +16,17 @@ import (
 	"github.com/zfair/zqtt/src/internal/topic"
 )
 
-var _ storage.Storage = new(Storage)
+var _ storage.Storage = (*Storage)(nil)
+
+var validConfigKeywords = []string{
+	"dbname",
+	"user",
+	"password",
+	"host",
+	"port",
+	"sslmode",
+	"connect_timeout",
+}
 
 type Storage struct {
 	logger *zap.Logger
@@ -35,30 +45,21 @@ func (*Storage) Name() string {
 	return "postgres"
 }
 
-var validConfigKeywords = []string{
-	"dbname",
-	"user",
-	"password",
-	"host",
-	"port",
-	"sslmode",
-	"connect_timeout",
-}
-
 // Configure and connect to the storage.
 func (s *Storage) Configure(config map[string]interface{}) error {
 	var sb strings.Builder
 
 	for _, key := range validConfigKeywords {
 		if value, ok := config[key]; ok {
-			fmtStr := fmt.Sprintf("%s=%%s", key)
-			if _, err := sb.WriteString(fmt.Sprintf(fmtStr, value.(string))); err != nil {
+			cfgPart := fmt.Sprintf("%s=%s ", key, value.(string))
+			if _, err := sb.WriteString(cfgPart); err != nil {
 				return err
 			}
 		}
 	}
 
 	connStr := sb.String()
+	fmt.Printf(connStr)
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return err
@@ -114,14 +115,53 @@ func (s *Storage) Store(ctx context.Context, m *topic.Message) error {
 }
 
 // Query a topic message.
-func (s *Storage) Query(ctx context.Context, topic string, _ssid string, opts storage.QueryOptions) ([]topic.Message, error) {
-	// TODO
-	return nil, nil
+func (s *Storage) Query(ctx context.Context, topicName string, _ssid string, opts storage.QueryOptions) ([]*topic.Message, error) {
+	// Generate Query SQL
+	sql, args, err := s.queryParse(topicName, opts)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.db.QueryContext(ctx, sql, args)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]*topic.Message, 0)
+	for rows.Next() {
+		mm := messageModel{}
+		if err := rows.Scan(
+			&mm.MessageSeq,
+			&mm.GUID,
+			&mm.ClientID,
+			&mm.MessageID,
+			&mm.TopicName,
+			&mm.Qos,
+			&mm.Payload,
+		); err != nil {
+			return nil, err
+		}
+		message := topic.NewMessage(
+			mm.GUID,
+			mm.ClientID,
+			uint16(mm.MessageID),
+			mm.TopicName,
+			nil,
+			byte(mm.Qos),
+			mm.TtlUntil,
+			[]byte(mm.Payload),
+		)
+		result = append(result, message)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (s *Storage) queryParse(topicName string, opts storage.QueryOptions) (string, []interface{}, error) {
 	pgSql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-	sqlBuilder := pgSql.Select("message_seq, guid, client_id, topic, qos, payload").From("message")
+	sqlBuilder := pgSql.Select("message_seq, guid, client_id, message_id, topic, qos, payload").From("message")
 	var zeroTime time.Time
 	if opts.TTLUntil != 0 {
 		sqlBuilder = sqlBuilder.Where("ttl_until <= ?", opts.TTLUntil)
