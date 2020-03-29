@@ -2,9 +2,9 @@ package postgres
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"testing"
-	"strconv"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -46,7 +46,7 @@ func TestPostgresStorage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	messageTopicNames := []string {
+	messageTopicNames := []string{
 		"foo",
 		"hello",
 		"foo/bar",
@@ -63,8 +63,8 @@ func TestPostgresStorage(t *testing.T) {
 	var messages []*topic.Message
 	for i, name := range messageTopicNames {
 		m := topic.NewMessage(
-			name, // message topic name as message guid
-			strconv.Itoa(i),    // element index of messages as clientID
+			name,            // message topic name as message guid
+			strconv.Itoa(i), // element index of messages as clientID
 			uint16(i),
 			name,
 			parseTopic(name),
