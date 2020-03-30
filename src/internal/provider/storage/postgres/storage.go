@@ -189,7 +189,7 @@ func (s *Storage) queryParse(topicName string, opts storage.QueryOptions) (strin
 		default:
 			querySsidLen++
 			hashOfPart := topic.Sum64([]byte(part))
-			sqlBuilder = sqlBuilder.Where(fmt.Sprintf("ssid[%d] = ?", i), hashOfPart)
+			sqlBuilder = sqlBuilder.Where(fmt.Sprintf("ssid[%d] = ?", i+1), strconv.FormatUint(hashOfPart, 10))
 
 		}
 	}
