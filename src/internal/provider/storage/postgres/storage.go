@@ -114,13 +114,13 @@ func (s *Storage) Store(ctx context.Context, m *topic.Message) error {
 }
 
 // Query a topic message.
-func (s *Storage) Query(ctx context.Context, topicName string, _ssid string, opts storage.QueryOptions) ([]*topic.Message, error) {
+func (s *Storage) Query(ctx context.Context, topicName string, _ssid topic.SSID, opts storage.QueryOptions) ([]*topic.Message, error) {
 	// Generate Query SQL
 	sql, args, err := s.queryParse(topicName, opts)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.db.QueryContext(ctx, sql, args)
+	rows, err := s.db.QueryContext(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}

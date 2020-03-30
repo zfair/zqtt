@@ -24,6 +24,14 @@ func parseTopic(topicName string) []uint64 {
 	return ssid
 }
 
+type postgresStorageTestCase struct {
+	queryTopicName string
+	queryOptions   storage.QueryOptions
+	err            error
+	matchCount     int
+	matchTopicsID  map[string]bool
+}
+
 // before run this test, you should spawn a postgres process
 // docker run -d --name some-postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres
 func TestPostgresStorage(t *testing.T) {
@@ -80,7 +88,49 @@ func TestPostgresStorage(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// TODO(zerolocusta) Add Query Test
+	// TODO(zerolocusta) Add More Query Test
+	testCases := []postgresStorageTestCase{
+		{
+			queryTopicName: "#",
+			matchCount:     len(messageTopicNames),
+			matchTopicsID: map[string]bool{
+				"foo":                     true,
+				"hello":                   true,
+				"foo/bar":                 true,
+				"hello/world":             true,
+				"hello/mqtt":              true,
+				"hello/foo/bar":           true,
+				"hello/world/foo/bar":     true,
+				"hello/world/zqtt":        true,
+				"hello/mqtt/zqtt":         true,
+				"hello/mqtt/zqtt/foo":     true,
+				"hello/mqtt/zqtt/bar":     true,
+				"hello/mqtt/zqtt/foo/bar": true,
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		result, err := store.Query(context.Background(), testCase.queryTopicName, nil, testCase.queryOptions)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// we use message topic name as it's GUID
+		resultGUIDSet := make(map[string]bool)
+		for _, ele := range result {
+			resultGUIDSet[ele.GUID] = true
+		}
+		assertion := assert.New(t)
+		assertion.Equal(len(resultGUIDSet), len(result))
+		assertion.Equal(len(resultGUIDSet), testCase.matchCount)
+		assertion.Equal(len(resultGUIDSet), len(testCase.matchTopicsID))
+		for k := range testCase.matchTopicsID {
+			_, ok := resultGUIDSet[k]
+			if !ok {
+				assertion.Equal(true, ok)
+			}
+		}
+	}
 }
 
 type queryParseTestCase struct {
@@ -183,6 +233,5 @@ func TestStorageQueryParse(t *testing.T) {
 		assertion := assert.New(t)
 		assertion.Equal(c.SQL, sql)
 		assertion.Equal(c.Args, args)
-
 	}
 }
