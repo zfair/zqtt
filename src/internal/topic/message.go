@@ -1,15 +1,5 @@
 package topic
 
-const (
-	SingleWildcard = "+"
-	MultiWildcard  = "#"
-)
-
-var (
-	SingleWildcardHash = Sum64([]byte(SingleWildcard))
-	MultiWildcardHash  = Sum64([]byte(MultiWildcard))
-)
-
 // Message on a specific topic.
 type Message struct {
 	MessageSeq int64
@@ -20,7 +10,7 @@ type Message struct {
 	MessageID uint16
 	// Original topic name of this message.
 	TopicName string
-	Ssid      []uint64
+	Ssid      SSID
 	// QoS of this message.
 	Qos      byte
 	TtlUntil int64
@@ -33,7 +23,7 @@ func NewMessage(
 	clientID string,
 	messageID uint16,
 	topicName string,
-	ssid []uint64,
+	ssid SSID,
 	qos byte,
 	ttlUntil int64,
 	payload []byte,

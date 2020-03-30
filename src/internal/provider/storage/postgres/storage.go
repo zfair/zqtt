@@ -16,74 +16,48 @@ import (
 	"github.com/zfair/zqtt/src/internal/topic"
 )
 
-var _ storage.Storage = new(Storage)
+var _ storage.Storage = (*Storage)(nil)
+
+var validConfigKeywords = []string{
+	"dbname",
+	"user",
+	"password",
+	"host",
+	"port",
+	"sslmode",
+	"connect_timeout",
+}
 
 type Storage struct {
 	logger *zap.Logger
 	db     *sql.DB
 }
 
+// NewStorage creates a new PostgresQL storage provider.
 func NewStorage(logger *zap.Logger) *Storage {
 	return &Storage{
 		logger: logger,
 	}
 }
 
-func (s *Storage) Name() string {
+// Name of PostgresQL storage provider.
+func (*Storage) Name() string {
 	return "postgres"
 }
 
+// Configure and connect to the storage.
 func (s *Storage) Configure(config map[string]interface{}) error {
 	var sb strings.Builder
-	dbname, ok := config["dbname"]
-	if ok {
-		_, err := sb.WriteString(fmt.Sprintf("dbname=%s ", dbname.(string)))
-		if err != nil {
-			return err
+
+	for _, key := range validConfigKeywords {
+		if value, ok := config[key]; ok {
+			cfgPart := fmt.Sprintf("%s=%s ", key, value.(string))
+			if _, err := sb.WriteString(cfgPart); err != nil {
+				return err
+			}
 		}
 	}
-	username, ok := config["user"]
-	if ok {
-		_, err := sb.WriteString(fmt.Sprintf("user=%s ", username.(string)))
-		if err != nil {
-			return err
-		}
-	}
-	password, ok := config["password"]
-	if ok {
-		_, err := sb.WriteString(fmt.Sprintf("password=%s ", password.(string)))
-		if err != nil {
-			return err
-		}
-	}
-	host, ok := config["host"]
-	if ok {
-		_, err := sb.WriteString(fmt.Sprintf("host=%s ", host.(string)))
-		if err != nil {
-			return err
-		}
-	}
-	port, ok := config["port"]
-	if ok {
-		_, err := sb.WriteString(fmt.Sprintf("port=%s ", port.(string)))
-		if err != nil {
-			return err
-		}
-	}
-	sslmode, ok := config["sslmode"]
-	if ok {
-		_, err := sb.WriteString(fmt.Sprintf("sslmode=%s ", sslmode.(string)))
-		if err != nil {
-			return err
-		}
-	}
-	connectTimeout, ok := config["connect_timeout"]
-	if ok {
-		_, err := sb.WriteString(fmt.Sprintf("connect_timeout=%d ", int(connectTimeout.(float64))))
-		if err != nil {
-			return err
-		}
-	}
+
 	connStr := sb.String()
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
@@ -98,10 +72,12 @@ func (s *Storage) Configure(config map[string]interface{}) error {
 	return nil
 }
 
+// Close the storage connection.
 func (s *Storage) Close() error {
 	return s.db.Close()
 }
 
+// Store a topic message.
 func (s *Storage) Store(ctx context.Context, m *topic.Message) error {
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
@@ -113,8 +89,17 @@ func (s *Storage) Store(ctx context.Context, m *topic.Message) error {
 	}
 	_, err = conn.ExecContext(
 		ctx,
-		`INSERT INTO message(guid, client_id, message_id, topic, ssid, ssid_len, ttl_until, qos, payload) 
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		`INSERT INTO message(
+			guid,
+			client_id,
+			message_id,
+			topic,
+			ssid,
+			ssid_len,
+			ttl_until,
+			qos,
+			payload
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 		m.GUID, m.ClientID, m.MessageID, m.TopicName, ssidStringArray, len(m.Ssid), m.TtlUntil, m.Qos, string(m.Payload),
 	)
 	if err != nil {
@@ -128,13 +113,54 @@ func (s *Storage) Store(ctx context.Context, m *topic.Message) error {
 	return nil
 }
 
-func (s *Storage) Query(ctx context.Context, topic string, _ssid string, opts storage.QueryOptions) ([]topic.Message, error) {
-	return nil, nil
+// Query a topic message.
+func (s *Storage) Query(ctx context.Context, topicName string, _ssid string, opts storage.QueryOptions) ([]*topic.Message, error) {
+	// Generate Query SQL
+	sql, args, err := s.queryParse(topicName, opts)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.db.QueryContext(ctx, sql, args)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]*topic.Message, 0)
+	for rows.Next() {
+		mm := messageModel{}
+		if err := rows.Scan(
+			&mm.MessageSeq,
+			&mm.GUID,
+			&mm.ClientID,
+			&mm.MessageID,
+			&mm.TopicName,
+			&mm.Qos,
+			&mm.Payload,
+		); err != nil {
+			return nil, err
+		}
+		message := topic.NewMessage(
+			mm.GUID,
+			mm.ClientID,
+			uint16(mm.MessageID),
+			mm.TopicName,
+			nil,
+			byte(mm.Qos),
+			mm.TtlUntil,
+			[]byte(mm.Payload),
+		)
+		result = append(result, message)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (s *Storage) queryParse(topicName string, opts storage.QueryOptions) (string, []interface{}, error) {
-	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-	sqlBuilder := psql.Select("message_seq, guid, client_id, topic, qos, payload").From("message")
+	pgSql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+	sqlBuilder := pgSql.Select("message_seq, guid, client_id, message_id, topic, qos, payload").From("message")
 	var zeroTime time.Time
 	if opts.TTLUntil != 0 {
 		sqlBuilder = sqlBuilder.Where("ttl_until <= ?", opts.TTLUntil)
@@ -143,7 +169,7 @@ func (s *Storage) queryParse(topicName string, opts storage.QueryOptions) (strin
 		sqlBuilder = sqlBuilder.Where("created_at >= ?", opts.From)
 	}
 	if opts.Until != zeroTime {
-		sqlBuilder = sqlBuilder.Where("created_at < ?", opts.From)
+		sqlBuilder = sqlBuilder.Where("created_at < ?", opts.Until)
 	}
 
 	parts := strings.Split(topicName, "/")
