@@ -2,6 +2,7 @@ package broker
 
 import (
 	"bytes"
+	"context"
 	"time"
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
@@ -55,18 +56,24 @@ exit:
 }
 
 // TODO(locustchen)
-func (c *Conn) onPacket(packet packets.ControlPacket) error {
+func (c *Conn) onPacket(ctx context.Context, packet packets.ControlPacket) error {
 	var err error
 	switch p := packet.(type) {
 	case *packets.ConnectPacket:
-		err = c.onConnect(p)
+		err = c.onConnect(ctx, p)
 	default:
 		err = errors.Errorf("unimplemented")
 	}
 	return err
 }
 
-func (c *Conn) onConnect(_packet *packets.ConnectPacket) error {
+func (c *Conn) onConnect(ctx context.Context, packet *packets.ConnectPacket) error {
+	username := packet.Username
+	clientID := packet.ClientIdentifier
+
+	// TODO: add hooks function for connection auth and extension
+	c.setConnected(username, clientID)
+
 	connAck := packets.NewControlPacket(
 		packets.Connack,
 	)
@@ -76,5 +83,5 @@ func (c *Conn) onConnect(_packet *packets.ConnectPacket) error {
 	if err != nil {
 		return err
 	}
-	return c.Send(buf.Bytes())
+	return c.Send(ctx, buf.Bytes())
 }

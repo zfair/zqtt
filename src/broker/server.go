@@ -1,12 +1,14 @@
 package broker
 
 import (
+	"context"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/zfair/zqtt/src/config"
+	"github.com/zfair/zqtt/src/internal/topic"
 	"github.com/zfair/zqtt/src/internal/util"
 	"go.uber.org/zap"
 )
@@ -16,6 +18,10 @@ type Server struct {
 	connCount int64
 
 	config atomic.Value
+
+	ctx context.Context
+
+	subTrie *topic.SubTrie // The subscription matching trie.
 
 	logger *zap.Logger
 
@@ -58,12 +64,14 @@ func NewServer(config *config.Config) (*Server, error) {
 
 	s := &Server{
 		logger:    config.Logger,
+		ctx:       context.Background(),
 		startTime: time.Now(),
 
 		exitChan: make(chan int),
 	}
 
 	s.swapCfg(config)
+	s.subTrie = topic.NewSubTrie()
 
 	s.tcpServer = &tcpServer{}
 	s.tcpListener, err = net.Listen("tcp", config.TCPAddress)
