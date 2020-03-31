@@ -441,7 +441,6 @@ func TestUnsubscribe(t *testing.T) {
 		subs := trie.Lookup(c.lookupSSID)
 		assert.Equal(c.beforeMatchCount, subs.Size())
 		for _, id := range c.beforeMatchIDs {
-			t.Logf("subs: %v\n", subs)
 			sub, ok := subs[id]
 			assert.Equal(true, ok)
 			if !ok {
