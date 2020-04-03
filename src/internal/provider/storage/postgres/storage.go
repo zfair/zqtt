@@ -46,7 +46,7 @@ func (*Storage) Name() string {
 }
 
 // Configure and connect to the storage.
-func (s *Storage) Configure(config map[string]interface{}) error {
+func (s *Storage) Configure(ctx context.Context, config map[string]interface{}) error {
 	var sb strings.Builder
 
 	for _, key := range validConfigKeywords {

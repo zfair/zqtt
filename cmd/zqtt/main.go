@@ -52,7 +52,7 @@ func (p *program) Start() error {
 
 	server, err := broker.NewServer(cfg)
 	if err != nil {
-		log.Fatalf("failed to instantiate nsqd - %s", err)
+		log.Fatalf("failed to instantiate zqtt - %s", err)
 	}
 	p.server = server
 
