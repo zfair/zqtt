@@ -2,7 +2,7 @@
 .vscode/
 
 # Artifacts
-zqtt-cli
+zqtt
 
 # Binaries for programs and plugins
 *.exe
