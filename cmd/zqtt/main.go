@@ -78,7 +78,7 @@ func brokerFlagSet() *flag.FlagSet {
 	flagSet := flag.NewFlagSet("broker", flag.ExitOnError)
 
 	flagSet.Bool("version", false, "print version string")
-	flagSet.String("config", "", "path to config file")
+	flagSet.String("config", "zqtt.yaml", "path to config file")
 
 	return flagSet
 }
