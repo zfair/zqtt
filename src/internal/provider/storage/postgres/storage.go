@@ -161,8 +161,8 @@ func (s *Storage) Query(ctx context.Context, topicName string, _ssid topic.SSID,
 }
 
 func (s *Storage) queryParse(topicName string, opts storage.QueryOptions) (string, []interface{}, error) {
-	pgSql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-	sqlBuilder := pgSql.Select("message_seq, guid, client_id, message_id, topic, qos, payload").From("message")
+	pgSQL := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+	sqlBuilder := pgSQL.Select("message_seq, guid, client_id, message_id, topic, qos, payload").From("message")
 	var zeroTime time.Time
 	if opts.TTLUntil != 0 {
 		sqlBuilder = sqlBuilder.Where("ttl_until <= ?", opts.TTLUntil)
