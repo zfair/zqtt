@@ -16,6 +16,8 @@ import (
 	"github.com/zfair/zqtt/src/internal/topic"
 )
 
+const maxTTL = 30 * 24 * time.Hour
+
 var _ storage.Storage = (*Storage)(nil)
 
 var validConfigKeywords = []string{
@@ -100,7 +102,7 @@ func (s *Storage) Store(ctx context.Context, m *topic.Message) error {
 			qos,
 			payload
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		m.GUID, m.ClientID, m.MessageID, m.TopicName, ssidStringArray, len(m.Ssid), m.TtlUntil, m.Qos, string(m.Payload),
+		m.GUID, m.ClientID, m.MessageID, m.TopicName, ssidStringArray, len(m.Ssid), m.TTLUntil, m.Qos, string(m.Payload),
 	)
 	if err != nil {
 		return err
@@ -147,7 +149,7 @@ func (s *Storage) Query(ctx context.Context, topicName string, _ssid topic.SSID,
 			mm.TopicName,
 			nil,
 			byte(mm.Qos),
-			mm.TtlUntil,
+			mm.TTLUntil,
 			[]byte(mm.Payload),
 		)
 		result = append(result, message)

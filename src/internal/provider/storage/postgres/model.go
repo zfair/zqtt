@@ -1,8 +1,9 @@
 package postgres
 
 import (
-	"github.com/lib/pq"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 type messageModel struct {
@@ -13,7 +14,7 @@ type messageModel struct {
 	TopicName  string
 	Ssid       pq.StringArray
 	SsidLen    int
-	TtlUntil   int64
+	TTLUntil   time.Time
 	Qos        int
 	Payload    string
 	CreatedAt  time.Time

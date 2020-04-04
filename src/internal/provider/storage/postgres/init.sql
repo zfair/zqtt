@@ -6,7 +6,7 @@ CREATE TABLE message(
     topic text,
     ssid text[],
     ssid_len int,
-    ttl_until int,
+    ttl_until timestamp,
     qos int,
     payload text,
     created_at timestamp,

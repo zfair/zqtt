@@ -1,5 +1,7 @@
 package topic
 
+import "time"
+
 // Message on a specific topic.
 type Message struct {
 	MessageSeq int64
@@ -13,7 +15,7 @@ type Message struct {
 	Ssid      SSID
 	// QoS of this message.
 	Qos      byte
-	TtlUntil int64
+	TTLUntil time.Time
 	Payload  []byte
 }
 
@@ -25,7 +27,7 @@ func NewMessage(
 	topicName string,
 	ssid SSID,
 	qos byte,
-	ttlUntil int64,
+	ttlUntil time.Time,
 	payload []byte,
 ) *Message {
 	return &Message{
@@ -35,7 +37,7 @@ func NewMessage(
 		TopicName: topicName,
 		Ssid:      ssid,
 		Qos:       qos,
-		TtlUntil:  ttlUntil,
+		TTLUntil:  ttlUntil,
 		Payload:   payload,
 	}
 }

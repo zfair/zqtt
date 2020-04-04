@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
-	_ "github.com/zfair/zqtt/src/internal/topic"
+	"github.com/zfair/zqtt/src/internal/topic"
 )
 
 func (c *Conn) messagePump(startedChan chan int) error {
@@ -61,6 +61,8 @@ func (c *Conn) onPacket(ctx context.Context, packet packets.ControlPacket) error
 	switch p := packet.(type) {
 	case *packets.ConnectPacket:
 		err = c.onConnect(ctx, p)
+	case *packets.PublishPacket:
+		err = c.onPublish(ctx, p)
 	default:
 		err = errors.Errorf("unimplemented")
 	}
@@ -84,4 +86,18 @@ func (c *Conn) onConnect(ctx context.Context, packet *packets.ConnectPacket) err
 		return err
 	}
 	return c.Send(ctx, buf.Bytes())
+}
+
+func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) error {
+	topicName := packet.TopicName
+	parser := topic.NewParser(topicName)
+	parsedTopic, err := parser.Parse()
+	if err != nil {
+		return err
+	}
+	if parsedTopic.Kind() != topic.TopicKindStatic {
+		return errors.Errorf("Invalid Publish Topic %s", topicName)
+	}
+	// TODO
+	return nil
 }

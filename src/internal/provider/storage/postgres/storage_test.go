@@ -47,13 +47,13 @@ func TestPostgresStorage(t *testing.T) {
 		"dbname":          "postgres",
 		"user":            "postgres",
 		"password":        "postgres",
-		"host":            "127.0.0.1",
+		"host":            "192.168.99.100",
 		"port":            "5432",
 		"sslmode":         "disable",
 		"connect_timeout": "10",
 	}
 	store := NewStorage(logger)
-	err = store.Configure(config)
+	err = store.Configure(context.Background(), config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestPostgresStorage(t *testing.T) {
 			name,
 			parseTopic(name),
 			0,
-			0,
+			time.Now(),
 			[]byte(name),
 		)
 		messages = append(messages, m)
