@@ -5,6 +5,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/zfair/zqtt/src/zerr"
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
@@ -107,7 +108,41 @@ func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) err
 	if parsedTopic.Kind() != topic.TopicKindStatic {
 		return errors.Errorf("Invalid Publish Topic %s", topicName)
 	}
-	// TODO
+	ssid := parsedTopic.ToSSID()
+	// TODO: add hooks function for publish auth and extension
+	uid, err := uuid.NewRandom()
+	if err != nil {
+		return err
+	}
+	m := topic.NewMessage(
+		uid.String(),
+		c.clientID,
+		packet.MessageID,
+		topicName,
+		ssid,
+		packet.Qos,
+		ZeroTime,
+		packet.Payload,
+	)
+
+	// TODO: Read ttl Options From Topic Name
+	if packet.Retain {
+		m.TTLUntil = MaxTime
+	}
+	// store message if needed
+	if m.TTLUntil != ZeroTime {
+		err := c.server.store.Store(ctx, m)
+		if err != nil {
+			return err
+		}
+	}
+	subscribers := c.server.subTrie.Lookup(ssid)
+	for _, subscriber := range subscribers {
+		err := subscriber.SendMessage(ctx, m)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }

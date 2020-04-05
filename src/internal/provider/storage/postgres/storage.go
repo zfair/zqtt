@@ -10,6 +10,7 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/lib/pq"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
 	"github.com/zfair/zqtt/src/internal/provider/storage"
@@ -17,6 +18,9 @@ import (
 )
 
 const maxTTL = 30 * 24 * time.Hour
+
+// we build postgres index on topic parts
+const maxTopicParts = 8
 
 var _ storage.Storage = (*Storage)(nil)
 
@@ -81,6 +85,10 @@ func (s *Storage) Close() error {
 
 // Store a topic message.
 func (s *Storage) Store(ctx context.Context, m *topic.Message) error {
+	if len(m.Ssid) > maxTopicParts {
+		return errors.Errorf("max valid topic parts of postgres storage is %d, but got %d", maxTopicParts, len(m.Ssid))
+	}
+
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
 		return err
