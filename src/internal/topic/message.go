@@ -4,7 +4,7 @@ import "time"
 
 // Message on a specific topic.
 type Message struct {
-	MessageSeq int64
+	messageSeq int64
 	// Internally global unique ID of this message.
 	GUID     string
 	ClientID string
@@ -44,5 +44,10 @@ func NewMessage(
 
 // SetMessageSeq sets the sequence number of the message.
 func (m *Message) SetMessageSeq(messageSeq int64) {
-	m.MessageSeq = messageSeq
+	m.messageSeq = messageSeq
+}
+
+// GetMessageSeq get the sequence number of the message.
+func (m *Message) GetMessageSeq() int64 {
+	return m.messageSeq
 }

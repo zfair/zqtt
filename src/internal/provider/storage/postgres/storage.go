@@ -152,6 +152,7 @@ func (s *Storage) Query(ctx context.Context, topicName string, _ssid topic.SSID,
 			mm.TTLUntil,
 			[]byte(mm.Payload),
 		)
+		message.SetMessageSeq(mm.MessageSeq)
 		result = append(result, message)
 	}
 	if err := rows.Err(); err != nil {

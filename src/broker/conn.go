@@ -154,14 +154,18 @@ exit:
 	return err
 }
 
-func (c Conn) setConnected(username string, clientID string) {
+func (c *Conn) setConnected(username string, clientID string) {
 	c.state = connStateConnected
 	c.username = username
 	c.clientID = clientID
 }
 
+func (c *Conn) isConnected() bool {
+	return c.state == connStateConnected
+}
+
 // SendMessage sends only a *publish* message to the client.
-func (c Conn) SendMessage(ctx context.Context, msg *topic.Message) error {
+func (c *Conn) SendMessage(ctx context.Context, msg *topic.Message) error {
 	packet := (packets.NewControlPacket(packets.Publish)).(*packets.PublishPacket)
 	packet.MessageID = msg.MessageID
 	packet.Qos = msg.Qos
@@ -176,7 +180,7 @@ func (c Conn) SendMessage(ctx context.Context, msg *topic.Message) error {
 }
 
 // Send data to the peer.
-func (c Conn) Send(ctx context.Context, b []byte) error {
+func (c *Conn) Send(ctx context.Context, b []byte) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()

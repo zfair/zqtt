@@ -5,12 +5,17 @@ import (
 	"context"
 	"time"
 
+	"github.com/zfair/zqtt/src/zerr"
+
 	"github.com/eclipse/paho.mqtt.golang/packets"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
 	"github.com/zfair/zqtt/src/internal/topic"
 )
+
+var MaxTime time.Time = time.Unix(1<<63-1, 0)
+var ZeroTime time.Time
 
 func (c *Conn) messagePump(startedChan chan int) error {
 	var err error
@@ -89,6 +94,10 @@ func (c *Conn) onConnect(ctx context.Context, packet *packets.ConnectPacket) err
 }
 
 func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) error {
+	if !c.isConnected() {
+		return zerr.ErrNotConnectd
+	}
+
 	topicName := packet.TopicName
 	parser := topic.NewParser(topicName)
 	parsedTopic, err := parser.Parse()
@@ -99,5 +108,6 @@ func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) err
 		return errors.Errorf("Invalid Publish Topic %s", topicName)
 	}
 	// TODO
+
 	return nil
 }
