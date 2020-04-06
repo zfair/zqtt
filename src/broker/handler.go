@@ -138,9 +138,15 @@ func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) err
 	}
 	subscribers := c.server.subTrie.Lookup(ssid)
 	for _, subscriber := range subscribers {
+		// ignore sendMessage error
 		err := subscriber.SendMessage(ctx, m)
 		if err != nil {
-			return err
+			c.server.logger.Info(
+				"SendMessage Failed",
+				zap.String("ClientID", c.clientID),
+				zap.String("TopicName", topicName),
+				zap.Uint64("SubscriberID", subscriber.ID()),
+			)
 		}
 	}
 

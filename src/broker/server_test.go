@@ -33,3 +33,15 @@ func TestConnectToBroker(t *testing.T) {
 		t.Fatal(token.Error())
 	}
 }
+
+func TestPublishMessage(t *testing.T) {
+	client := newTestClient(
+		testBrokerAddress,
+		"test-publish",
+		"test-publish",
+	)
+
+	if token := client.Connect(); token.Wait() && token.Error() != nil {
+		t.Fatal(token.Error())
+	}
+}
