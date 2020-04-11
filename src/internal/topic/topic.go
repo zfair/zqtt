@@ -35,10 +35,18 @@ type option struct {
 	Value string
 }
 
+type TopicKind int8
+
+const (
+	TopicKindStatic   TopicKind = iota + 1 // topic without wildcard
+	TopicKindWildcard                      // topic with wildcard
+)
+
 // Topic contains full info from a topic string, e.g. the subscription options
 // and potential wildcards to match.  It is used to generate SSIDs and further
 // process the options.
 type Topic struct {
+	kind    TopicKind
 	parts   []part
 	options map[string]string
 }
@@ -60,4 +68,9 @@ func (t *Topic) ToSSID() SSID {
 	}
 
 	return ret
+}
+
+// Topic converts to SSID.
+func (t *Topic) Kind() TopicKind {
+	return t.kind
 }

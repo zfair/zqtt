@@ -38,6 +38,7 @@ var identPattern = regexp.MustCompile(identPatternString)
 type Parser struct {
 	srcTxt  string
 	pos     int
+	kind    TopicKind
 	parts   []part
 	options []*option
 }
@@ -46,6 +47,7 @@ type Parser struct {
 func NewParser(srcTxt string) *Parser {
 	return &Parser{
 		srcTxt: srcTxt,
+		kind:   TopicKindStatic, // default topic kind is Static
 	}
 }
 
@@ -68,7 +70,7 @@ func (p *Parser) Parse() (*Topic, error) {
 		opts[opt.Key] = opt.Value
 	}
 
-	return &Topic{parts: p.parts, options: opts}, nil
+	return &Topic{kind: p.kind, parts: p.parts, options: opts}, nil
 }
 
 func (p *Parser) advance() {
@@ -114,8 +116,10 @@ func (p *Parser) scanParts(partsTxt string) error {
 	for _, part := range parts {
 		switch part {
 		case "+":
+			p.kind = TopicKindWildcard
 			p.parts = append(p.parts, partSingleWildcard{})
 		case "#":
+			p.kind = TopicKindWildcard
 			p.parts = append(p.parts, partMultiWildcard{})
 		default:
 			if !identPattern.Match([]byte(part)) {

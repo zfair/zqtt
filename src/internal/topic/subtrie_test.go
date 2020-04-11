@@ -1,10 +1,10 @@
 package topic
 
 import (
+	"context"
 	"strings"
 	"testing"
 
-	"github.com/eclipse/paho.mqtt.golang/packets"
 	"github.com/spaolacci/murmur3"
 	"github.com/stretchr/testify/assert"
 	"github.com/zfair/zqtt/src/zerr"
@@ -42,7 +42,7 @@ func (s *testSubscriber) Kind() SubscriberKind {
 	return SubscriberKindLocal
 }
 
-func (s *testSubscriber) Send(packets.ControlPacket) error {
+func (s *testSubscriber) SendMessage(context.Context, *Message) error {
 	return nil
 }
 
@@ -441,7 +441,6 @@ func TestUnsubscribe(t *testing.T) {
 		subs := trie.Lookup(c.lookupSSID)
 		assert.Equal(c.beforeMatchCount, subs.Size())
 		for _, id := range c.beforeMatchIDs {
-			t.Logf("subs: %v\n", subs)
 			sub, ok := subs[id]
 			assert.Equal(true, ok)
 			if !ok {

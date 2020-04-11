@@ -1,12 +1,16 @@
 package broker
 
 import (
+	"context"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/zfair/zqtt/src/config"
+	"github.com/zfair/zqtt/src/internal/provider/storage"
+	"github.com/zfair/zqtt/src/internal/provider/storage/postgres"
+	"github.com/zfair/zqtt/src/internal/topic"
 	"github.com/zfair/zqtt/src/internal/util"
 	"go.uber.org/zap"
 )
@@ -15,7 +19,12 @@ import (
 type Server struct {
 	connCount int64
 
-	config atomic.Value
+	cfg atomic.Value
+
+	ctx context.Context
+
+	subTrie *topic.SubTrie // The subscription matching trie.
+	store   storage.Storage
 
 	logger *zap.Logger
 
@@ -37,39 +46,53 @@ func (s *Server) decrConnCount() {
 }
 
 func (s *Server) getCfg() *config.Config {
-	return s.config.Load().(*config.Config)
+	return s.cfg.Load().(*config.Config)
 }
 
 func (s *Server) swapCfg(config *config.Config) {
-	s.config.Store(config)
+	s.cfg.Store(config)
 }
 
 // NewServer creates a new server.
-func NewServer(config *config.Config) (*Server, error) {
+func NewServer(cfg *config.Config) (*Server, error) {
 	var err error
 
-	if config.Logger == nil {
+	if cfg.Logger == nil {
 		logger, err := zap.NewDevelopment()
 		if err != nil {
 			return nil, err
 		}
-		config.Logger = logger
+		cfg.Logger = logger
 	}
 
 	s := &Server{
-		logger:    config.Logger,
+		logger:    cfg.Logger,
+		ctx:       context.Background(),
 		startTime: time.Now(),
 
 		exitChan: make(chan int),
 	}
 
-	s.swapCfg(config)
+	s.swapCfg(cfg)
+	s.subTrie = topic.NewSubTrie()
 
 	s.tcpServer = &tcpServer{}
-	s.tcpListener, err = net.Listen("tcp", config.TCPAddress)
+	s.tcpListener, err = net.Listen("tcp", cfg.TCPAddress)
 	if err != nil {
 		return nil, err
 	}
+
+	store, err := config.LoadProvider(
+		s.ctx,
+		cfg.Storage,
+		// register postgres storage
+		postgres.NewStorage(cfg.Logger),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	s.store = store.(storage.Storage)
 
 	return s, nil
 }

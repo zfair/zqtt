@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"crypto/md5"
 	"crypto/tls"
 	"hash/crc32"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -48,7 +50,7 @@ type Config struct {
 	TLSMinVersion       uint16 `yaml:"tlsMinVersion"`
 
 	// Storage config.
-	Storage *ProviderInfo
+	Storage *ProviderInfo `yaml:"storage"`
 }
 
 // NewConfig creates a new config.
@@ -66,8 +68,8 @@ func NewConfig() *Config {
 		NodeID: defaultID,
 
 		TCPAddress:   "127.0.0.1:9798",
-		HTTPAddress:  "0.0.0.0:9799",
-		HTTPSAddress: "0.0.0.0:9800",
+		HTTPAddress:  "127.0.0.1:9799",
+		HTTPSAddress: "127.0.0.1:9800",
 
 		HTTPClientConnectTimeout: 2 * time.Second,
 		HTTPClientRequestTimeout: 5 * time.Second,
@@ -92,11 +94,29 @@ func NewConfig() *Config {
 // Provider is the config provider interface.
 type Provider interface {
 	Name() string
-	Configure(config map[string]interface{}) error
+	Configure(ctx context.Context, config map[string]interface{}) error
 }
 
 // ProviderInfo is the info of a config provider.
 type ProviderInfo struct {
 	Provider string                 `yaml:"provider"`
 	Config   map[string]interface{} `yaml:"config,omitempty"`
+}
+
+// LoadProvider Find And Load Provider Config Into Provider
+func LoadProvider(ctx context.Context, info *ProviderInfo, providers ...Provider) (interface{}, error) {
+	providerName := info.Provider
+	var provider Provider
+	for _, p := range providers {
+		// find the match provider
+		if p.Name() == providerName {
+			provider = p
+			break
+		}
+	}
+	if provider == nil {
+		return nil, errors.Errorf("Provider %s Not Found", providerName)
+	}
+	err := provider.Configure(ctx, info.Config)
+	return provider, err
 }

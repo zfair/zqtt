@@ -26,7 +26,7 @@ func (p *tcpServer) Handle(clientConn net.Conn) {
 	}
 
 	p.conns.Store(conn.LUID(), conn)
-	err = conn.IOLoop()
+	err = conn.IOLoop(p.server.ctx)
 	if err != nil {
 		p.server.logger.Error(
 			"client err",

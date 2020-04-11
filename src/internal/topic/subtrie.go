@@ -1,9 +1,8 @@
 package topic
 
 import (
+	"context"
 	"sync"
-
-	"github.com/eclipse/paho.mqtt.golang/packets"
 
 	"github.com/zfair/zqtt/src/zerr"
 )
@@ -20,7 +19,7 @@ const (
 type Subscriber interface {
 	ID() uint64
 	Kind() SubscriberKind
-	Send(packets.ControlPacket) error
+	SendMessage(context.Context, *Message) error
 }
 
 type Subscribers map[uint64]Subscriber

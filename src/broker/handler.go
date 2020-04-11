@@ -2,14 +2,21 @@ package broker
 
 import (
 	"bytes"
+	"context"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/zfair/zqtt/src/zerr"
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
-	_ "github.com/zfair/zqtt/src/internal/topic"
+	"github.com/zfair/zqtt/src/internal/topic"
 )
+
+var MaxTime time.Time = time.Unix(1<<63-1, 0)
+var ZeroTime time.Time
 
 func (c *Conn) messagePump(startedChan chan int) error {
 	var err error
@@ -55,18 +62,26 @@ exit:
 }
 
 // TODO(locustchen)
-func (c *Conn) onPacket(packet packets.ControlPacket) error {
+func (c *Conn) onPacket(ctx context.Context, packet packets.ControlPacket) error {
 	var err error
 	switch p := packet.(type) {
 	case *packets.ConnectPacket:
-		err = c.onConnect(p)
+		err = c.onConnect(ctx, p)
+	case *packets.PublishPacket:
+		err = c.onPublish(ctx, p)
 	default:
 		err = errors.Errorf("unimplemented")
 	}
 	return err
 }
 
-func (c *Conn) onConnect(_packet *packets.ConnectPacket) error {
+func (c *Conn) onConnect(ctx context.Context, packet *packets.ConnectPacket) error {
+	username := packet.Username
+	clientID := packet.ClientIdentifier
+
+	// TODO: add hooks function for connection auth and extension
+	c.setConnected(username, clientID)
+
 	connAck := packets.NewControlPacket(
 		packets.Connack,
 	)
@@ -76,5 +91,64 @@ func (c *Conn) onConnect(_packet *packets.ConnectPacket) error {
 	if err != nil {
 		return err
 	}
-	return c.Send(buf.Bytes())
+	return c.Send(ctx, buf.Bytes())
+}
+
+func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) error {
+	if !c.isConnected() {
+		return zerr.ErrNotConnectd
+	}
+
+	topicName := packet.TopicName
+	parser := topic.NewParser(topicName)
+	parsedTopic, err := parser.Parse()
+	if err != nil {
+		return err
+	}
+	if parsedTopic.Kind() != topic.TopicKindStatic {
+		return errors.Errorf("Invalid Publish Topic %s", topicName)
+	}
+	ssid := parsedTopic.ToSSID()
+	// TODO: add hooks function for publish auth and extension
+	uid, err := uuid.NewRandom()
+	if err != nil {
+		return err
+	}
+	m := topic.NewMessage(
+		uid.String(),
+		c.clientID,
+		packet.MessageID,
+		topicName,
+		ssid,
+		packet.Qos,
+		ZeroTime,
+		packet.Payload,
+	)
+
+	// TODO: Read ttl Options From Topic Name
+	if packet.Retain {
+		m.TTLUntil = MaxTime
+	}
+	// store message if needed
+	if m.TTLUntil != ZeroTime {
+		err := c.server.store.Store(ctx, m)
+		if err != nil {
+			return err
+		}
+	}
+	subscribers := c.server.subTrie.Lookup(ssid)
+	for _, subscriber := range subscribers {
+		// ignore sendMessage error
+		err := subscriber.SendMessage(ctx, m)
+		if err != nil {
+			c.server.logger.Info(
+				"SendMessage Failed",
+				zap.String("ClientID", c.clientID),
+				zap.String("TopicName", topicName),
+				zap.Uint64("SubscriberID", subscriber.ID()),
+			)
+		}
+	}
+
+	return nil
 }

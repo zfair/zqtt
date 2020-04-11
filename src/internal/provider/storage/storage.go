@@ -26,5 +26,5 @@ type Storage interface {
 	Store(ctx context.Context, m *topic.Message) error
 
 	// query message from storage
-	Query(ctx context.Context, topic string, ssid string, opts QueryOptions) ([]*topic.Message, error)
+	Query(ctx context.Context, topic string, ssid topic.SSID, opts QueryOptions) ([]*topic.Message, error)
 }

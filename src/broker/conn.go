@@ -3,6 +3,7 @@ package broker
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"io"
 	"net"
 	"sync"
@@ -15,6 +16,14 @@ import (
 	"github.com/zfair/zqtt/src/internal/topic"
 	"github.com/zfair/zqtt/src/internal/util"
 	"github.com/zfair/zqtt/src/zerr"
+)
+
+const (
+	connStateInit = iota + 1
+	connStateDisconnected
+	connStateConnected
+	connStateClosing
+	connStateClosed
 )
 
 const defaultBufferSize = 16 * 1024
@@ -42,6 +51,7 @@ type Conn struct {
 	luid uint64 // local unique id of this connection
 	guid string // global unique id of this connection
 
+	state  int32
 	server *Server
 }
 
@@ -65,8 +75,10 @@ func newConn(s *Server, socket net.Conn) (*Conn, error) {
 		ExitChan: make(chan int),
 		sendChan: make(chan []byte),
 
-		luid:   util.NewLUID(),
-		guid:   uid.String(),
+		luid: util.NewLUID(),
+		guid: uid.String(),
+
+		state:  connStateInit,
 		server: s,
 	}, nil
 }
@@ -77,7 +89,7 @@ func (c *Conn) LUID() uint64 {
 }
 
 // IOLoop for a upcoming connection.
-func (c *Conn) IOLoop() error {
+func (c *Conn) IOLoop(ctx context.Context) error {
 	messagePumpStarted := make(chan int)
 	messagePumpErrChan := make(chan error)
 
@@ -94,6 +106,9 @@ func (c *Conn) IOLoop() error {
 
 	for {
 		select {
+		case <-ctx.Done():
+			err = ctx.Err()
+			goto exit
 		case err = <-messagePumpErrChan:
 			goto exit
 		default:
@@ -110,7 +125,7 @@ func (c *Conn) IOLoop() error {
 				}
 				goto exit
 			}
-			err = c.onPacket(packet)
+			err = c.onPacket(ctx, packet)
 			if err != nil {
 				goto exit
 			}
@@ -139,8 +154,18 @@ exit:
 	return err
 }
 
+func (c *Conn) setConnected(username string, clientID string) {
+	c.state = connStateConnected
+	c.username = username
+	c.clientID = clientID
+}
+
+func (c *Conn) isConnected() bool {
+	return c.state == connStateConnected
+}
+
 // SendMessage sends only a *publish* message to the client.
-func (c Conn) SendMessage(msg *topic.Message) error {
+func (c *Conn) SendMessage(ctx context.Context, msg *topic.Message) error {
 	packet := (packets.NewControlPacket(packets.Publish)).(*packets.PublishPacket)
 	packet.MessageID = msg.MessageID
 	packet.Qos = msg.Qos
@@ -151,12 +176,14 @@ func (c Conn) SendMessage(msg *topic.Message) error {
 	if err != nil {
 		return err
 	}
-	return c.Send(buf.Bytes())
+	return c.Send(ctx, buf.Bytes())
 }
 
 // Send data to the peer.
-func (c Conn) Send(b []byte) error {
+func (c *Conn) Send(ctx context.Context, b []byte) error {
 	select {
+	case <-ctx.Done():
+		return ctx.Err()
 	case c.sendChan <- b:
 		return nil
 	case <-c.ExitChan:

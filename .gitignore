@@ -2,7 +2,7 @@
 .vscode/
 
 # Artifacts
-zqtt-cli
+zqtt
 
 # Binaries for programs and plugins
 *.exe
@@ -19,3 +19,4 @@ zqtt-cli
 
 # Dependency directories (remove the comment below to include it)
 vendor/
+__debug_bin

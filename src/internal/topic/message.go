@@ -1,8 +1,10 @@
 package topic
 
+import "time"
+
 // Message on a specific topic.
 type Message struct {
-	MessageSeq int64
+	messageSeq int64
 	// Internally global unique ID of this message.
 	GUID     string
 	ClientID string
@@ -13,7 +15,7 @@ type Message struct {
 	Ssid      SSID
 	// QoS of this message.
 	Qos      byte
-	TtlUntil int64
+	TTLUntil time.Time
 	Payload  []byte
 }
 
@@ -25,7 +27,7 @@ func NewMessage(
 	topicName string,
 	ssid SSID,
 	qos byte,
-	ttlUntil int64,
+	ttlUntil time.Time,
 	payload []byte,
 ) *Message {
 	return &Message{
@@ -35,12 +37,17 @@ func NewMessage(
 		TopicName: topicName,
 		Ssid:      ssid,
 		Qos:       qos,
-		TtlUntil:  ttlUntil,
+		TTLUntil:  ttlUntil,
 		Payload:   payload,
 	}
 }
 
 // SetMessageSeq sets the sequence number of the message.
 func (m *Message) SetMessageSeq(messageSeq int64) {
-	m.MessageSeq = messageSeq
+	m.messageSeq = messageSeq
+}
+
+// GetMessageSeq get the sequence number of the message.
+func (m *Message) GetMessageSeq() int64 {
+	return m.messageSeq
 }
