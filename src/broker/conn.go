@@ -213,3 +213,11 @@ func (c *Conn) Flush() error {
 
 	return nil
 }
+
+func (c *Conn) ID() uint64 {
+	return c.luid
+}
+
+func (c *Conn) Kind() topic.SubscriberKind {
+	return topic.SubscriberKindLocal
+}

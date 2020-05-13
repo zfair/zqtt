@@ -73,6 +73,7 @@ func (s *Storage) Configure(ctx context.Context, config map[string]interface{}) 
 	if err != nil {
 		return err
 	}
+	s.logger.Info("[Postgres Message Storage]Connected To Postgres")
 	// TODO: SetMaxIdleConn and SetMaxOpenConn
 	s.db = db
 	return nil

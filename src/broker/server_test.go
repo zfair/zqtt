@@ -1,6 +1,7 @@
 package broker
 
 import (
+	"fmt"
 	"testing"
 
 	MQTT "github.com/eclipse/paho.mqtt.golang"
@@ -42,6 +43,36 @@ func TestPublishMessage(t *testing.T) {
 	)
 
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
+		t.Fatal(token.Error())
+	}
+
+	for i := 0; i < 5; i++ {
+		text := fmt.Sprintf("this is msg #%d!", i)
+		token := client.Publish("go-mqtt/sample", 1, false, text)
+		token.Wait()
+		if err := token.Error(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestSubscribeMessage(t *testing.T) {
+
+	onMessageReceived := func(client MQTT.Client, message MQTT.Message) {
+		fmt.Printf("Received message on topic: %s\nMessage: %s\n", message.Topic(), message.Payload())
+	}
+
+	client := newTestClient(
+		testBrokerAddress,
+		"test-subscribe",
+		"test-subscribe",
+	)
+
+	if token := client.Connect(); token.Wait() && token.Error() != nil {
+		t.Fatal(token.Error())
+	}
+
+	if token := client.Subscribe("go-mqtt/sample", 0, onMessageReceived); token.Wait() && token.Error() != nil {
 		t.Fatal(token.Error())
 	}
 }

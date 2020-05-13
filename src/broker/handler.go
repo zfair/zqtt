@@ -69,6 +69,9 @@ func (c *Conn) onPacket(ctx context.Context, packet packets.ControlPacket) error
 		err = c.onConnect(ctx, p)
 	case *packets.PublishPacket:
 		err = c.onPublish(ctx, p)
+	case *packets.SubscribePacket:
+		// TODO
+		err = c.onSubscribe(ctx, p)
 	default:
 		err = errors.Errorf("unimplemented")
 	}
@@ -136,9 +139,16 @@ func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) err
 			return err
 		}
 	}
+
+	c.server.logger.Info(
+		"[Broker] OnPublish",
+		zap.Any("m", m),
+	)
+
 	subscribers := c.server.subTrie.Lookup(ssid)
 	for _, subscriber := range subscribers {
 		// ignore sendMessage error
+		// TODO: handle puback for each subscriber
 		err := subscriber.SendMessage(ctx, m)
 		if err != nil {
 			c.server.logger.Info(
@@ -150,5 +160,51 @@ func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) err
 		}
 	}
 
+	if packet.Qos == 1 {
+		pubAck := packets.NewControlPacket(
+			packets.Puback,
+		).(*packets.PubackPacket)
+		pubAck.MessageID = packet.MessageID
+
+		buf := new(bytes.Buffer)
+		err := pubAck.Write(buf)
+		if err != nil {
+			return err
+		}
+		return c.Send(ctx, buf.Bytes())
+	}
+
 	return nil
+}
+
+func (c *Conn) onSubscribe(ctx context.Context, packet *packets.SubscribePacket) error {
+	c.server.logger.Info(
+		"[Broker] onSubscribe",
+		zap.Any("packet", packet),
+	)
+	for _, topicName := range packet.Topics {
+		parser := topic.NewParser(topicName)
+		parsedTopic, err := parser.Parse()
+		if err != nil {
+			return err
+		}
+		ssid := parsedTopic.ToSSID()
+		err = c.server.subTrie.Subscribe(ssid, c)
+		if err != nil {
+			return err
+		}
+	}
+	// TODO(locustchen): use buffer pool
+	subAck := packets.NewControlPacket(
+		packets.Suback,
+	).(*packets.SubackPacket)
+
+	subAck.MessageID = packet.MessageID
+
+	buf := new(bytes.Buffer)
+	err := subAck.Write(buf)
+	if err != nil {
+		return err
+	}
+	return c.Send(ctx, buf.Bytes())
 }
