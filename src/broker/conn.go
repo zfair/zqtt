@@ -27,6 +27,7 @@ const (
 )
 
 const defaultBufferSize = 16 * 1024
+const defaultPollSubscribeMessageInterval = 5 * time.Second
 
 // Conn is the broker connection.
 type Conn struct {
@@ -39,8 +40,9 @@ type Conn struct {
 	// Writer mutex
 	writerLock sync.Mutex
 
-	HeartbeatTimeout time.Duration
-	FlushInterval    time.Duration
+	HeartbeatTimeout             time.Duration
+	FlushInterval                time.Duration
+	PollSubscribeMessageInterval time.Duration
 
 	ExitChan chan int
 	sendChan chan []byte
@@ -53,6 +55,8 @@ type Conn struct {
 
 	state  int32
 	server *Server
+
+	subTopics sync.Map // save subscribed topic for this connection
 }
 
 func newConn(s *Server, socket net.Conn) (*Conn, error) {
@@ -69,8 +73,9 @@ func newConn(s *Server, socket net.Conn) (*Conn, error) {
 		reader: bufio.NewReaderSize(socket, defaultBufferSize),
 		writer: bufio.NewWriterSize(socket, defaultBufferSize),
 
-		HeartbeatTimeout: s.getCfg().HeartbeatTimeout / 2,
-		FlushInterval:    s.getCfg().FlushInterval,
+		HeartbeatTimeout:             s.getCfg().HeartbeatTimeout / 2,
+		FlushInterval:                s.getCfg().FlushInterval,
+		PollSubscribeMessageInterval: defaultPollSubscribeMessageInterval,
 
 		ExitChan: make(chan int),
 		sendChan: make(chan []byte),
@@ -220,4 +225,12 @@ func (c *Conn) ID() uint64 {
 
 func (c *Conn) Kind() topic.SubscriberKind {
 	return topic.SubscriberKindLocal
+}
+
+func (c *Conn) StoreSubTopic(ctx context.Context, topicName string) {
+	c.subTopics.Store(topicName, true)
+}
+
+func (c *Conn) DeleteSubTopic(ctx context.Context, topicName string) {
+	c.subTopics.Delete(topicName)
 }

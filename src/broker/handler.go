@@ -61,6 +61,11 @@ exit:
 	return err
 }
 
+func (c *Conn) pollSubscribeMessage(ctx context.Context, startedChan chan int) error {
+	// TODO: for range subTopics
+	return nil
+}
+
 // TODO(locustchen)
 func (c *Conn) onPacket(ctx context.Context, packet packets.ControlPacket) error {
 	var err error
@@ -70,9 +75,14 @@ func (c *Conn) onPacket(ctx context.Context, packet packets.ControlPacket) error
 	case *packets.PublishPacket:
 		err = c.onPublish(ctx, p)
 	case *packets.SubscribePacket:
-		// TODO
 		err = c.onSubscribe(ctx, p)
+	case *packets.PubackPacket:
+		// TODO: handle puback packet
 	default:
+		c.server.logger.Error(
+			"[Conn] onPacket unimplemented",
+			zap.String("packet", packet.String()),
+		)
 		err = errors.Errorf("unimplemented")
 	}
 	return err
@@ -156,11 +166,12 @@ func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) err
 				zap.String("ClientID", c.clientID),
 				zap.String("TopicName", topicName),
 				zap.Uint64("SubscriberID", subscriber.ID()),
+				zap.Error(err),
 			)
 		}
 	}
 
-	if packet.Qos == 1 {
+	if packet.Qos > 0 {
 		pubAck := packets.NewControlPacket(
 			packets.Puback,
 		).(*packets.PubackPacket)
@@ -182,18 +193,40 @@ func (c *Conn) onSubscribe(ctx context.Context, packet *packets.SubscribePacket)
 		"[Broker] onSubscribe",
 		zap.Any("packet", packet),
 	)
-	for _, topicName := range packet.Topics {
-		parser := topic.NewParser(topicName)
-		parsedTopic, err := parser.Parse()
+	if len(packet.Topics) != 1 {
+		// simplify onSubscribe logic
+		// only allow subscribe one topic per packet
+		c.server.logger.Error(
+			"[Broker] onSubscribe Length of topics != 1",
+			zap.Uint64("luid", c.ID()),
+		)
+		subAck := packets.NewControlPacket(
+			packets.Suback,
+		).(*packets.SubackPacket)
+
+		subAck.MessageID = packet.MessageID
+		subAck.ReturnCodes = []byte{
+			packets.ErrProtocolViolation,
+		}
+		buf := new(bytes.Buffer)
+		err := subAck.Write(buf)
 		if err != nil {
 			return err
 		}
-		ssid := parsedTopic.ToSSID()
-		err = c.server.subTrie.Subscribe(ssid, c)
-		if err != nil {
-			return err
-		}
+		return c.Send(ctx, buf.Bytes())
 	}
+	topicName := packet.Topics[0]
+	parser := topic.NewParser(topicName)
+	parsedTopic, err := parser.Parse()
+	if err != nil {
+		return err
+	}
+	ssid := parsedTopic.ToSSID()
+	err = c.server.subTrie.Subscribe(ssid, c)
+	if err != nil {
+		return err
+	}
+	c.StoreSubTopic(ctx, topicName)
 	// TODO(locustchen): use buffer pool
 	subAck := packets.NewControlPacket(
 		packets.Suback,
@@ -202,7 +235,7 @@ func (c *Conn) onSubscribe(ctx context.Context, packet *packets.SubscribePacket)
 	subAck.MessageID = packet.MessageID
 
 	buf := new(bytes.Buffer)
-	err := subAck.Write(buf)
+	err = subAck.Write(buf)
 	if err != nil {
 		return err
 	}

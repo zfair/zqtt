@@ -75,4 +75,15 @@ func TestSubscribeMessage(t *testing.T) {
 	if token := client.Subscribe("go-mqtt/sample", 0, onMessageReceived); token.Wait() && token.Error() != nil {
 		t.Fatal(token.Error())
 	}
+
+	for i := 0; i < 5; i++ {
+		text := fmt.Sprintf("this is msg #%d!", i)
+		token := client.Publish("go-mqtt/sample", 1, false, text)
+		token.Wait()
+		if err := token.Error(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// select {}
 }
