@@ -8,8 +8,6 @@ type Message struct {
 	// Internally global unique ID of this message.
 	GUID     string
 	ClientID string
-	// Original ID of this message (optional).
-	MessageID uint16
 	// Original topic name of this message.
 	TopicName string
 	Ssid      SSID
@@ -23,7 +21,6 @@ type Message struct {
 func NewMessage(
 	guid string,
 	clientID string,
-	messageID uint16,
 	topicName string,
 	ssid SSID,
 	qos byte,
@@ -33,7 +30,6 @@ func NewMessage(
 	return &Message{
 		GUID:      guid,
 		ClientID:  clientID,
-		MessageID: messageID,
 		TopicName: topicName,
 		Ssid:      ssid,
 		Qos:       qos,

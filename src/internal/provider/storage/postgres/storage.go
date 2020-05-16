@@ -103,15 +103,14 @@ func (s *Storage) Store(ctx context.Context, m *topic.Message) error {
 		`INSERT INTO message(
 			guid,
 			client_id,
-			message_id,
 			topic,
 			ssid,
 			ssid_len,
 			ttl_until,
 			qos,
 			payload
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		m.GUID, m.ClientID, m.MessageID, m.TopicName, ssidStringArray, len(m.Ssid), m.TTLUntil, m.Qos, string(m.Payload),
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		m.GUID, m.ClientID, m.TopicName, ssidStringArray, len(m.Ssid), m.TTLUntil, m.Qos, string(m.Payload),
 	)
 	if err != nil {
 		return err
@@ -144,7 +143,6 @@ func (s *Storage) Query(ctx context.Context, topicName string, _ssid topic.SSID,
 			&mm.MessageSeq,
 			&mm.GUID,
 			&mm.ClientID,
-			&mm.MessageID,
 			&mm.TopicName,
 			&mm.Qos,
 			&mm.Payload,
@@ -154,7 +152,6 @@ func (s *Storage) Query(ctx context.Context, topicName string, _ssid topic.SSID,
 		message := topic.NewMessage(
 			mm.GUID,
 			mm.ClientID,
-			uint16(mm.MessageID),
 			mm.TopicName,
 			nil,
 			byte(mm.Qos),
@@ -172,7 +169,7 @@ func (s *Storage) Query(ctx context.Context, topicName string, _ssid topic.SSID,
 
 func (s *Storage) queryParse(topicName string, opts storage.QueryOptions) (string, []interface{}, error) {
 	pgSQL := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-	sqlBuilder := pgSQL.Select("message_seq, guid, client_id, message_id, topic, qos, payload").From("message")
+	sqlBuilder := pgSQL.Select("message_seq, guid, client_id, topic, qos, payload").From("message")
 	var zeroTime time.Time
 	if opts.TTLUntil != 0 {
 		sqlBuilder = sqlBuilder.Where("ttl_until <= ?", opts.TTLUntil)

@@ -78,7 +78,7 @@ func (c *Conn) onPacket(ctx context.Context, packet packets.ControlPacket) error
 		err = c.onSubscribe(ctx, p)
 	case *packets.PubackPacket:
 		// TODO: handle puback packet
-		c.server.logger.Info(
+		c.server.logger.Debug(
 			"[Conn] onPacket",
 			zap.Any("packet", packet),
 		)
@@ -134,7 +134,6 @@ func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) err
 	m := topic.NewMessage(
 		uid.String(),
 		c.clientID,
-		packet.MessageID,
 		topicName,
 		ssid,
 		packet.Qos,
@@ -154,7 +153,7 @@ func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) err
 		}
 	}
 
-	c.server.logger.Info(
+	c.server.logger.Debug(
 		"[Broker] OnPublish",
 		zap.Any("m", m),
 	)
@@ -193,7 +192,7 @@ func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) err
 }
 
 func (c *Conn) onSubscribe(ctx context.Context, packet *packets.SubscribePacket) error {
-	c.server.logger.Info(
+	c.server.logger.Debug(
 		"[Broker] onSubscribe",
 		zap.Any("packet", packet),
 	)
@@ -230,7 +229,7 @@ func (c *Conn) onSubscribe(ctx context.Context, packet *packets.SubscribePacket)
 	if err != nil {
 		return err
 	}
-	c.StoreSubTopic(ctx, topicName)
+	c.StoreSubTopic(ctx, topicName, ssid)
 	// TODO(locustchen): use buffer pool
 	subAck := packets.NewControlPacket(
 		packets.Suback,

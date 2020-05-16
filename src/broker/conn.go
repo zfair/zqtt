@@ -56,7 +56,8 @@ type Conn struct {
 	state  int32
 	server *Server
 
-	subTopics sync.Map // save subscribed topic for this connection
+	subTopics     sync.Map // save subscribed topic for this connection
+	messageIDRing *MessageIDRing
 }
 
 func newConn(s *Server, socket net.Conn) (*Conn, error) {
@@ -83,8 +84,9 @@ func newConn(s *Server, socket net.Conn) (*Conn, error) {
 		luid: util.NewLUID(),
 		guid: uid.String(),
 
-		state:  connStateInit,
-		server: s,
+		state:         connStateInit,
+		server:        s,
+		messageIDRing: NewMessageIDRing(),
 	}, nil
 }
 
@@ -171,13 +173,17 @@ func (c *Conn) isConnected() bool {
 
 // SendMessage sends only a *publish* message to the client.
 func (c *Conn) SendMessage(ctx context.Context, msg *topic.Message) error {
+	messageID, err := c.messageIDRing.GetID()
+	if err != nil {
+		return err
+	}
 	packet := (packets.NewControlPacket(packets.Publish)).(*packets.PublishPacket)
-	packet.MessageID = msg.MessageID
+	packet.MessageID = messageID
 	packet.Qos = msg.Qos
 	packet.TopicName = msg.TopicName
 	packet.Payload = msg.Payload
 	buf := new(bytes.Buffer)
-	err := packet.Write(buf)
+	err = packet.Write(buf)
 	if err != nil {
 		return err
 	}
@@ -199,6 +205,17 @@ func (c *Conn) Send(ctx context.Context, b []byte) error {
 // Close the connection.
 func (c *Conn) Close() error {
 	err := c.socket.Close()
+	c.subTopics.Range(func(k interface{}, v interface{}) bool {
+		ssid := v.([]uint64)
+		c.server.logger.Debug(
+			"[Conn] Close Unsubscribe topic",
+			zap.String("topic", k.(string)),
+		)
+		err := c.server.subTrie.Unsubscribe(ssid, c)
+		// TODO: report error
+		_ = err
+		return true
+	})
 	return err
 }
 
@@ -227,8 +244,8 @@ func (c *Conn) Kind() topic.SubscriberKind {
 	return topic.SubscriberKindLocal
 }
 
-func (c *Conn) StoreSubTopic(ctx context.Context, topicName string) {
-	c.subTopics.Store(topicName, true)
+func (c *Conn) StoreSubTopic(ctx context.Context, topicName string, ssid []uint64) {
+	c.subTopics.Store(topicName, ssid)
 }
 
 func (c *Conn) DeleteSubTopic(ctx context.Context, topicName string) {

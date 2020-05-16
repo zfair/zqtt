@@ -59,7 +59,7 @@ func TestPublishMessage(t *testing.T) {
 func TestSubscribeMessage(t *testing.T) {
 
 	onMessageReceived := func(client MQTT.Client, message MQTT.Message) {
-		fmt.Printf("Received message on topic: %s\nMessage: %s\n", message.Topic(), message.Payload())
+		fmt.Printf("Received message on topic: %s with message id %d\nMessage: %s\n", message.Topic(), message.MessageID(), message.Payload())
 	}
 
 	client := newTestClient(
