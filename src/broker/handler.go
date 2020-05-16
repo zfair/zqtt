@@ -78,6 +78,10 @@ func (c *Conn) onPacket(ctx context.Context, packet packets.ControlPacket) error
 		err = c.onSubscribe(ctx, p)
 	case *packets.PubackPacket:
 		// TODO: handle puback packet
+		c.server.logger.Info(
+			"[Conn] onPacket",
+			zap.Any("packet", packet),
+		)
 	default:
 		c.server.logger.Error(
 			"[Conn] onPacket unimplemented",
