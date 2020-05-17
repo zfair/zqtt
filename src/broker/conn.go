@@ -37,6 +37,8 @@ type Conn struct {
 	reader *bufio.Reader
 	writer *bufio.Writer
 
+	// Meta mutext
+	MetaLock sync.Mutex
 	// Writer mutex
 	writerLock sync.Mutex
 
@@ -162,12 +164,16 @@ exit:
 }
 
 func (c *Conn) setConnected(username string, clientID string) {
+	c.MetaLock.Lock()
 	c.state = connStateConnected
 	c.username = username
 	c.clientID = clientID
+	c.MetaLock.Unlock()
 }
 
 func (c *Conn) isConnected() bool {
+	c.MetaLock.Lock()
+	defer c.MetaLock.Unlock()
 	return c.state == connStateConnected
 }
 

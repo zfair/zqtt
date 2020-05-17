@@ -24,7 +24,7 @@ type Server struct {
 	ctx context.Context
 
 	subTrie *topic.SubTrie // The subscription matching trie.
-	store   storage.Storage
+	mstore  storage.MStorage
 
 	logger *zap.Logger
 
@@ -82,9 +82,9 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
-	store, err := config.LoadProvider(
+	mstore, err := config.LoadProvider(
 		s.ctx,
-		cfg.Storage,
+		cfg.MStorage,
 		// register postgres storage
 		postgres.NewStorage(cfg.Logger),
 	)
@@ -92,7 +92,7 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
-	s.store = store.(storage.Storage)
+	s.mstore = mstore.(storage.MStorage)
 
 	return s, nil
 }

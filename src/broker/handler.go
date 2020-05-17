@@ -147,7 +147,7 @@ func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) err
 	}
 	// store message if needed
 	if m.TTLUntil != ZeroTime {
-		err := c.server.store.Store(ctx, m)
+		err := c.server.mstore.Store(ctx, m)
 		if err != nil {
 			return err
 		}

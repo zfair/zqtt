@@ -17,8 +17,8 @@ type QueryOptions struct {
 	Offset   uint64    // query offset
 }
 
-// Storage interface for storage providers.
-type Storage interface {
+// MStorage interface for Message storage providers.
+type MStorage interface {
 	io.Closer
 	// Storage implements a config provider.
 	config.Provider

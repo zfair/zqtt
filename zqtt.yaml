@@ -2,7 +2,7 @@ nodeID: 0
 tcpAddress: 127.0.0.1:9798
 httpAddress: 127.0.0.1:9799
 httpsAddress: 127.0.0.1:9800
-storage:
+mstorage:
   provider: postgres
   config:
     dbname: postgres

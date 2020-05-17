@@ -50,7 +50,7 @@ type Config struct {
 	TLSMinVersion       uint16 `yaml:"tlsMinVersion"`
 
 	// Storage config.
-	Storage *ProviderInfo `yaml:"storage"`
+	MStorage *ProviderInfo `yaml:"mstorage"`
 }
 
 // NewConfig creates a new config.
