@@ -38,12 +38,20 @@ type SStorage interface {
 	DeleteSubscription(ctx context.Context, clientID string, t *topic.Topic) error
 }
 
+type ReadSeqRecord struct {
+	TopicName  string
+	MessageSeq int64
+}
+
 // RStorage interface Save Readed Seq For Ecah Client.
 type RStorage interface {
 	io.Closer
 	// RStorage implements a config provider.
 	config.Provider
 
+	// SaveReadSeq Only allow save TopicKindStatic topic
 	SaveReadSeq(ctx context.Context, clientID string, t *topic.Topic, messageSeq int64) error
-	GetReadSeq(ctx context.Context, clientID string, t *topic.Topic) (int64, error)
+
+	// GetReadSeq allow Get TopicKindStatic Or TopicKindWildcard topic
+	GetReadSeq(ctx context.Context, clientID string, t *topic.Topic) ([]ReadSeqRecord, error)
 }
