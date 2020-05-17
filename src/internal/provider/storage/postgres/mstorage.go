@@ -177,15 +177,14 @@ func (s *MStorage) QueryMessage(ctx context.Context, topicName string, _ssid top
 func (s *MStorage) queryParse(topicName string, opts storage.QueryOptions) (string, []interface{}, error) {
 	pgSQL := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 	sqlBuilder := pgSQL.Select("message_seq, guid, client_id, topic, qos, payload").From("message")
-	var zeroTime time.Time
 	if opts.TTLUntil != 0 {
 		sqlBuilder = sqlBuilder.Where("ttl_until <= ?", opts.TTLUntil)
 	}
-	if opts.From != zeroTime {
-		sqlBuilder = sqlBuilder.Where("created_at >= ?", opts.From)
+	if opts.From != 0 {
+		sqlBuilder = sqlBuilder.Where("message_seq >= ?", opts.From)
 	}
-	if opts.Until != zeroTime {
-		sqlBuilder = sqlBuilder.Where("created_at < ?", opts.Until)
+	if opts.Until != 0 {
+		sqlBuilder = sqlBuilder.Where("message_seq < ?", opts.Until)
 	}
 
 	parts := strings.Split(topicName, "/")

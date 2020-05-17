@@ -234,8 +234,9 @@ type queryParseTestCase struct {
 }
 
 func TestStorageQueryParse(t *testing.T) {
-	fromTime := time.Now()
-	untilTime := time.Now()
+	fromSeq := time.Now().UnixNano()
+	untilSeq := time.Now().UnixNano()
+
 	testCase := []queryParseTestCase{
 		{
 			TopicName: "#",
@@ -273,43 +274,43 @@ func TestStorageQueryParse(t *testing.T) {
 			TopicName: "hello/+/world",
 			Options: storage.QueryOptions{
 				TTLUntil: 1919,
-				From:     fromTime,
+				From:     fromSeq,
 			},
-			SQL:  "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ttl_until <= $1 AND created_at >= $2 AND ssid[1] = $3 AND ssid[3] = $4 AND ssid_len = $5",
-			Args: []interface{}{int64(1919), fromTime, Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
+			SQL:  "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ttl_until <= $1 AND message_seq >= $2 AND ssid[1] = $3 AND ssid[3] = $4 AND ssid_len = $5",
+			Args: []interface{}{int64(1919), fromSeq, Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
 		},
 		{
 			TopicName: "hello/+/world",
 			Options: storage.QueryOptions{
 				TTLUntil: 1919,
-				From:     fromTime,
-				Until:    untilTime,
+				From:     fromSeq,
+				Until:    untilSeq,
 			},
-			SQL:  "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ttl_until <= $1 AND created_at >= $2 AND created_at < $3 AND ssid[1] = $4 AND ssid[3] = $5 AND ssid_len = $6",
-			Args: []interface{}{int64(1919), fromTime, untilTime, Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
+			SQL:  "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ttl_until <= $1 AND message_seq >= $2 AND message_seq < $3 AND ssid[1] = $4 AND ssid[3] = $5 AND ssid_len = $6",
+			Args: []interface{}{int64(1919), fromSeq, untilSeq, Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
 		},
 		{
 			TopicName: "hello/+/world",
 			Options: storage.QueryOptions{
 				TTLUntil: 1919,
-				From:     fromTime,
-				Until:    untilTime,
+				From:     fromSeq,
+				Until:    untilSeq,
 				Limit:    10,
 			},
-			SQL:  "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ttl_until <= $1 AND created_at >= $2 AND created_at < $3 AND ssid[1] = $4 AND ssid[3] = $5 AND ssid_len = $6 LIMIT 10",
-			Args: []interface{}{int64(1919), fromTime, untilTime, Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
+			SQL:  "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ttl_until <= $1 AND message_seq >= $2 AND message_seq < $3 AND ssid[1] = $4 AND ssid[3] = $5 AND ssid_len = $6 LIMIT 10",
+			Args: []interface{}{int64(1919), fromSeq, untilSeq, Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
 		},
 		{
 			TopicName: "hello/+/world",
 			Options: storage.QueryOptions{
 				TTLUntil: 1919,
-				From:     fromTime,
-				Until:    untilTime,
+				From:     fromSeq,
+				Until:    untilSeq,
 				Limit:    10,
 				Offset:   100,
 			},
-			SQL:  "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ttl_until <= $1 AND created_at >= $2 AND created_at < $3 AND ssid[1] = $4 AND ssid[3] = $5 AND ssid_len = $6 LIMIT 10 OFFSET 100",
-			Args: []interface{}{int64(1919), fromTime, untilTime, Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
+			SQL:  "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ttl_until <= $1 AND message_seq >= $2 AND message_seq < $3 AND ssid[1] = $4 AND ssid[3] = $5 AND ssid_len = $6 LIMIT 10 OFFSET 100",
+			Args: []interface{}{int64(1919), fromSeq, untilSeq, Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
 		},
 	}
 	logger, err := zap.NewDevelopment()

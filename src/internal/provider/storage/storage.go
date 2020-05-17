@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"io"
-	"time"
 
 	"github.com/zfair/zqtt/src/config"
 	"github.com/zfair/zqtt/src/internal/topic"
@@ -11,16 +10,16 @@ import (
 
 type QueryOptions struct {
 	TTLUntil int64
-	From     time.Time // query message save time from unix seconds
-	Until    time.Time // query message save time until unix seconds
-	Limit    uint64    // query limit
-	Offset   uint64    // query offset
+	From     int64  // query message seq from
+	Until    int64  // query message seq until
+	Limit    uint64 // query limit
+	Offset   uint64 // query offset
 }
 
 // MStorage interface for Message storage providers.
 type MStorage interface {
 	io.Closer
-	// Storage implements a config provider.
+	// MStorage implements a config provider.
 	config.Provider
 	// Store message to the storage instance
 	// returning message seq and error
@@ -32,9 +31,19 @@ type MStorage interface {
 // SStorage interface for Subscription storage providers.
 type SStorage interface {
 	io.Closer
-	// Storage implements a config provider.
+	// SStorage implements a config provider.
 	config.Provider
 
 	StoreSubscription(ctx context.Context, clientID string, t *topic.Topic) error
 	DeleteSubscription(ctx context.Context, clientID string, t *topic.Topic) error
+}
+
+// RStorage interface Save Readed Seq For Ecah Client.
+type RStorage interface {
+	io.Closer
+	// RStorage implements a config provider.
+	config.Provider
+
+	SaveReadSeq(ctx context.Context, clientID string, topicName string, messageSeq int64) error
+	GetReadSeq(ctx context.Context, clientID string, topicName string) (int64, error)
 }
