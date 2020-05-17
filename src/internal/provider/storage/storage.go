@@ -44,6 +44,6 @@ type RStorage interface {
 	// RStorage implements a config provider.
 	config.Provider
 
-	SaveReadSeq(ctx context.Context, clientID string, topicName string, messageSeq int64) error
-	GetReadSeq(ctx context.Context, clientID string, topicName string) (int64, error)
+	SaveReadSeq(ctx context.Context, clientID string, t *topic.Topic, messageSeq int64) error
+	GetReadSeq(ctx context.Context, clientID string, t *topic.Topic) (int64, error)
 }
