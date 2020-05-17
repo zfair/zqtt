@@ -1,5 +1,6 @@
 CREATE TABLE message(
-    message_seq serial PRIMARY KEY,
+    id serial PRIMARY KEY,
+    message_seq timestamp default current_timestamp,
     guid text,
     client_id text,
     topic text,

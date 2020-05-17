@@ -7,7 +7,7 @@ import (
 )
 
 type messageModel struct {
-	MessageSeq int64
+	MessageSeq time.Time
 	GUID       string
 	ClientID   string
 	TopicName  string

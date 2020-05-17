@@ -85,11 +85,16 @@ func TestPostgresStorage(t *testing.T) {
 		)
 		messages = append(messages, m)
 	}
+	lastSeq := int64(0)
 	for _, message := range messages {
-		err = store.Store(context.Background(), message)
+		seq, err := store.StoreMessage(context.Background(), message)
 		if err != nil {
 			t.Fatal(err)
 		}
+		if seq <= lastSeq {
+			t.Fatalf("expect seq(%d) greater equal than lastSeq(%d)", seq, lastSeq)
+		}
+		lastSeq = seq
 	}
 	// TODO(zerolocusta) Add More Query Test
 	testCases := []postgresStorageTestCase{
@@ -199,7 +204,7 @@ func TestPostgresStorage(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		result, err := store.Query(context.Background(), testCase.queryTopicName, nil, testCase.queryOptions)
+		result, err := store.QueryMessage(context.Background(), testCase.queryTopicName, nil, testCase.queryOptions)
 		if err != nil {
 			t.Fatal(err)
 		}

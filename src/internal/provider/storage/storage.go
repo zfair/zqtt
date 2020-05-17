@@ -22,9 +22,19 @@ type MStorage interface {
 	io.Closer
 	// Storage implements a config provider.
 	config.Provider
-	// Store message to the storage instance.
-	Store(ctx context.Context, m *topic.Message) error
-
+	// Store message to the storage instance
+	// returning message seq and error
+	StoreMessage(ctx context.Context, m *topic.Message) (int64, error)
 	// query message from storage
-	Query(ctx context.Context, topic string, ssid topic.SSID, opts QueryOptions) ([]*topic.Message, error)
+	QueryMessage(ctx context.Context, topic string, ssid topic.SSID, opts QueryOptions) ([]*topic.Message, error)
+}
+
+// SStorage interface for Subscription storage providers.
+type SStorage interface {
+	io.Closer
+	// Storage implements a config provider.
+	config.Provider
+
+	StoreSubscription(ctx context.Context, clientID string, t *topic.Topic) error
+	DeleteSubscription(ctx context.Context, clientID string, t *topic.Topic) error
 }

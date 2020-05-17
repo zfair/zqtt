@@ -85,20 +85,20 @@ func (s *MStorage) Close() error {
 }
 
 // Store a topic message.
-func (s *MStorage) Store(ctx context.Context, m *topic.Message) error {
+func (s *MStorage) StoreMessage(ctx context.Context, m *topic.Message) (int64, error) {
 	if len(m.Ssid) > maxTopicParts {
-		return errors.Errorf("max valid topic parts of postgres storage is %d, but got %d", maxTopicParts, len(m.Ssid))
+		return 0, errors.Errorf("max valid topic parts of postgres storage is %d, but got %d", maxTopicParts, len(m.Ssid))
 	}
 
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	ssidStringArray := make(pq.StringArray, len(m.Ssid))
 	for i := range m.Ssid {
 		ssidStringArray[i] = strconv.FormatUint(m.Ssid[i], 10)
 	}
-	_, err = conn.ExecContext(
+	result := conn.QueryRowContext(
 		ctx,
 		`INSERT INTO message(
 			guid,
@@ -109,22 +109,29 @@ func (s *MStorage) Store(ctx context.Context, m *topic.Message) error {
 			ttl_until,
 			qos,
 			payload
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING message_seq`,
 		m.GUID, m.ClientID, m.TopicName, ssidStringArray, len(m.Ssid), m.TTLUntil, m.Qos, string(m.Payload),
 	)
 	if err != nil {
-		return err
+		return 0, err
+	}
+	var messageSeq time.Time
+	err = result.Scan(&messageSeq)
+	if err != nil {
+		return 0, err
 	}
 	s.logger.Info(
 		"Postgres Storage Store",
 		zap.String("guid", m.GUID),
 		zap.String("clientID", m.ClientID),
+		zap.Int64("messageSeq", messageSeq.UnixNano()),
 	)
-	return nil
+	// using message create time as message seq
+	return messageSeq.UnixNano(), nil
 }
 
 // Query a topic message.
-func (s *MStorage) Query(ctx context.Context, topicName string, _ssid topic.SSID, opts storage.QueryOptions) ([]*topic.Message, error) {
+func (s *MStorage) QueryMessage(ctx context.Context, topicName string, _ssid topic.SSID, opts storage.QueryOptions) ([]*topic.Message, error) {
 	// Generate Query SQL
 	sql, args, err := s.queryParse(topicName, opts)
 	if err != nil {
@@ -158,7 +165,7 @@ func (s *MStorage) Query(ctx context.Context, topicName string, _ssid topic.SSID
 			mm.TTLUntil,
 			[]byte(mm.Payload),
 		)
-		message.SetMessageSeq(mm.MessageSeq)
+		message.SetMessageSeq(mm.MessageSeq.UnixNano())
 		result = append(result, message)
 	}
 	if err := rows.Err(); err != nil {

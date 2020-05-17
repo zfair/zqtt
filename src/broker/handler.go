@@ -140,22 +140,16 @@ func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) err
 		ZeroTime,
 		packet.Payload,
 	)
-
-	// TODO: Read ttl Options From Topic Name
-	if packet.Retain {
-		m.TTLUntil = MaxTime
-	}
-	// store message if needed
-	if m.TTLUntil != ZeroTime {
-		err := c.server.mstore.Store(ctx, m)
-		if err != nil {
-			return err
-		}
+	// always store message
+	messageSeq, err := c.server.mstore.StoreMessage(ctx, m)
+	if err != nil {
+		return err
 	}
 
 	c.server.logger.Debug(
 		"[Broker] OnPublish",
 		zap.Any("m", m),
+		zap.Int64("messageSeq", messageSeq),
 	)
 
 	subscribers := c.server.subTrie.Lookup(ssid)
