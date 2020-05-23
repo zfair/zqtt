@@ -36,7 +36,6 @@ func (r *MessageIDRing) GetID() (uint16, error) {
 	// again
 	for i := minMessageID; i <= r.currentID && i != 0; i++ {
 		if _, ok := r.index[i]; !ok {
-			break
 			r.index[i] = true
 			r.currentID = i
 			return i, nil

@@ -61,11 +61,6 @@ exit:
 	return err
 }
 
-func (c *Conn) pollSubscribeMessage(ctx context.Context, startedChan chan int) error {
-	// TODO: for range subTopics
-	return nil
-}
-
 // TODO(locustchen)
 func (c *Conn) onPacket(ctx context.Context, packet packets.ControlPacket) error {
 	var err error
@@ -159,7 +154,7 @@ func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) err
 		err := subscriber.SendMessage(ctx, m)
 		if err != nil {
 			c.server.logger.Info(
-				"SendMessage Failed",
+				"[Broker] SendMessage Failed",
 				zap.String("ClientID", c.clientID),
 				zap.String("TopicName", topicName),
 				zap.Uint64("SubscriberID", subscriber.ID()),
