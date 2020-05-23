@@ -51,6 +51,7 @@ type Config struct {
 
 	// Storage config.
 	MStorage *ProviderInfo `yaml:"mstorage"`
+	SStorage *ProviderInfo `yaml:"sstorage"`
 }
 
 // NewConfig creates a new config.

@@ -70,7 +70,12 @@ func (p *Parser) Parse() (*Topic, error) {
 		opts[opt.Key] = opt.Value
 	}
 
-	return &Topic{kind: p.kind, parts: p.parts, options: opts}, nil
+	return &Topic{
+		kind:      p.kind,
+		topicName: p.srcTxt,
+		parts:     p.parts,
+		options:   opts,
+	}, nil
 }
 
 func (p *Parser) advance() {

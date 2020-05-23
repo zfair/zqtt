@@ -13,11 +13,13 @@ func newTestClient(
 	brokerAddr string,
 	password string,
 	username string,
+	clientID string,
 ) MQTT.Client {
 	opts := MQTT.NewClientOptions()
 	opts.AddBroker(brokerAddr)
 	opts.SetUsername(username)
 	opts.SetPassword(password)
+	opts.SetClientID(clientID)
 
 	client := MQTT.NewClient(opts)
 	return client
@@ -26,6 +28,7 @@ func newTestClient(
 func TestConnectToBroker(t *testing.T) {
 	client := newTestClient(
 		testBrokerAddress,
+		"test",
 		"test",
 		"test",
 	)
@@ -38,6 +41,7 @@ func TestConnectToBroker(t *testing.T) {
 func TestPublishMessage(t *testing.T) {
 	client := newTestClient(
 		testBrokerAddress,
+		"test-publish",
 		"test-publish",
 		"test-publish",
 	)
@@ -66,13 +70,14 @@ func TestSubscribeMessage(t *testing.T) {
 		testBrokerAddress,
 		"test-subscribe",
 		"test-subscribe",
+		"test-subscribe",
 	)
 
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
 		t.Fatal(token.Error())
 	}
 
-	if token := client.Subscribe("go-mqtt/sample", 0, onMessageReceived); token.Wait() && token.Error() != nil {
+	if token := client.Subscribe("go-mqtt/+", 0, onMessageReceived); token.Wait() && token.Error() != nil {
 		t.Fatal(token.Error())
 	}
 

@@ -212,12 +212,24 @@ func (c *Conn) onSubscribe(ctx context.Context, packet *packets.SubscribePacket)
 		}
 		return c.Send(ctx, buf.Bytes())
 	}
+
 	topicName := packet.Topics[0]
 	parser := topic.NewParser(topicName)
 	parsedTopic, err := parser.Parse()
 	if err != nil {
 		return err
 	}
+
+	// store subscription to sstorage
+	err = c.server.sstore.StoreSubscription(
+		ctx,
+		c.clientID,
+		parsedTopic,
+	)
+	if err != nil {
+		return err
+	}
+
 	ssid := parsedTopic.ToSSID()
 	err = c.server.subTrie.Subscribe(ssid, c)
 	if err != nil {

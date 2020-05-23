@@ -19,20 +19,7 @@ import (
 
 const maxTTL = 30 * 24 * time.Hour
 
-// we build postgres index on topic parts
-const maxTopicParts = 8
-
 var _ storage.MStorage = (*MStorage)(nil)
-
-var validConfigKeywords = []string{
-	"dbname",
-	"user",
-	"password",
-	"host",
-	"port",
-	"sslmode",
-	"connect_timeout",
-}
 
 type MStorage struct {
 	logger *zap.Logger
@@ -40,7 +27,7 @@ type MStorage struct {
 }
 
 // NewStorage creates a new PostgresQL storage provider.
-func NewStorage(logger *zap.Logger) *MStorage {
+func NewMStorage(logger *zap.Logger) *MStorage {
 	return &MStorage{
 		logger: logger,
 	}
@@ -53,22 +40,16 @@ func (*MStorage) Name() string {
 
 // Configure and connect to the storage.
 func (s *MStorage) Configure(ctx context.Context, config map[string]interface{}) error {
-	var sb strings.Builder
-
-	for _, key := range validConfigKeywords {
-		if value, ok := config[key]; ok {
-			cfgPart := fmt.Sprintf("%s=%s ", key, value.(string))
-			if _, err := sb.WriteString(cfgPart); err != nil {
-				return err
-			}
-		}
+	connStr, err := generateConnString(ctx, config)
+	if err != nil {
+		return err
 	}
 
-	connStr := sb.String()
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return err
 	}
+
 	err = db.Ping()
 	if err != nil {
 		return err
@@ -90,14 +71,17 @@ func (s *MStorage) StoreMessage(ctx context.Context, m *topic.Message) (int64, e
 		return 0, errors.Errorf("max valid topic parts of postgres storage is %d, but got %d", maxTopicParts, len(m.Ssid))
 	}
 
-	conn, err := s.db.Conn(ctx)
-	if err != nil {
-		return 0, err
-	}
 	ssidStringArray := make(pq.StringArray, len(m.Ssid))
 	for i := range m.Ssid {
 		ssidStringArray[i] = strconv.FormatUint(m.Ssid[i], 10)
 	}
+
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer conn.Close()
+
 	result := conn.QueryRowContext(
 		ctx,
 		`INSERT INTO message(
@@ -121,7 +105,7 @@ func (s *MStorage) StoreMessage(ctx context.Context, m *topic.Message) (int64, e
 		return 0, err
 	}
 	s.logger.Info(
-		"Postgres Storage Store",
+		"Postgres Message Storage Store",
 		zap.String("guid", m.GUID),
 		zap.String("clientID", m.ClientID),
 		zap.Int64("messageSeq", messageSeq.UnixNano()),
