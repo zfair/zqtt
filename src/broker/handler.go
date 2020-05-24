@@ -69,14 +69,11 @@ func (c *Conn) onPacket(ctx context.Context, packet packets.ControlPacket) error
 		err = c.onConnect(ctx, p)
 	case *packets.PublishPacket:
 		err = c.onPublish(ctx, p)
+	case *packets.PubackPacket:
+		err = c.onPuback(ctx, p)
 	case *packets.SubscribePacket:
 		err = c.onSubscribe(ctx, p)
-	case *packets.PubackPacket:
-		// TODO: handle puback packet
-		c.server.logger.Debug(
-			"[Conn] onPacket",
-			zap.Any("packet", packet),
-		)
+
 	default:
 		c.server.logger.Error(
 			"[Conn] onPacket unimplemented",
@@ -111,6 +108,13 @@ func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) err
 		return zerr.ErrNotConnectd
 	}
 
+	c.server.logger.Debug(
+		"[Broker] OnPublish",
+		zap.String("TopicName", packet.TopicName),
+		zap.Uint16("MessageID", packet.MessageID),
+		zap.Int("RemainingLength", packet.RemainingLength),
+	)
+
 	topicName := packet.TopicName
 	parser := topic.NewParser(topicName)
 	parsedTopic, err := parser.Parse()
@@ -143,7 +147,7 @@ func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) err
 
 	c.server.logger.Debug(
 		"[Broker] OnPublish",
-		zap.Any("m", m),
+		zap.Any("m", m.ClientID),
 		zap.Int64("messageSeq", messageSeq),
 	)
 
@@ -244,4 +248,14 @@ func (c *Conn) onSubscribe(ctx context.Context, packet *packets.SubscribePacket)
 		return err
 	}
 	return c.Send(ctx, buf.Bytes())
+}
+
+func (c *Conn) onPuback(ctx context.Context, packet *packets.PubackPacket) error {
+	c.server.logger.Debug(
+		"[Broker] onPuback",
+		zap.Uint16("MessageID", packet.MessageID),
+	)
+	messageID := packet.MessageID
+	c.messageIDRing.FreeID(messageID)
+	return nil
 }
