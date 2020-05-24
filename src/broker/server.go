@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/zfair/zqtt/src/config"
 	"github.com/zfair/zqtt/src/internal/provider/storage"
 	"github.com/zfair/zqtt/src/internal/provider/storage/postgres"
@@ -37,7 +36,7 @@ type Server struct {
 	tcpServer   *tcpServer
 	tcpListener net.Listener
 
-	ginEngine *gin.Engine
+	httpServer *httpServer
 
 	waitGroup util.WaitGroupWrapper
 }
@@ -87,6 +86,11 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
+	s.httpServer, err = newHTTPServer(s)
+	if err != nil {
+		return nil, err
+	}
+
 	MStore, err := config.LoadProvider(
 		s.ctx,
 		cfg.MStorage,
@@ -132,6 +136,10 @@ func (s *Server) Start() error {
 		exitFunc(TCPServer(s.tcpListener, s.tcpServer, s.logger))
 	})
 
+	s.waitGroup.Wrap(func() {
+		exitFunc(HTTPServer(s.httpServer))
+	})
+
 	err := <-exitCh
 	return err
 }
@@ -143,6 +151,9 @@ func (s *Server) Exit() {
 	}
 	if s.tcpServer != nil {
 		s.tcpServer.CloseAll()
+	}
+	if s.httpServer != nil {
+		s.httpServer.CloseAll()
 	}
 
 	close(s.exitChan)

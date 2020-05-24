@@ -20,9 +20,13 @@ type Config struct {
 	NodeID int64 `yaml:"nodeID"`
 	Logger *zap.Logger
 
-	TCPAddress               string        `yaml:"tcpAddress"`
-	HTTPAddress              string        `yaml:"httpAddress"`
-	HTTPSAddress             string        `yaml:"httpsAddress"`
+	TCPAddress  string `yaml:"tcpAddress"`
+	HTTPAddress string `yaml:"httpAddress"`
+
+	// HTTPSAddress string `yaml:"httpsAddress"`
+	// CertFile     string `yaml:"certFile"`
+	// KeyFile      string `yaml:"keyFile"`
+
 	HTTPClientConnectTimeout time.Duration `yaml:"httpClientConnectTimeout"`
 	HTTPClientRequestTimeout time.Duration `yaml:"httpClientRequestTimeout"`
 
@@ -68,9 +72,8 @@ func NewConfig() *Config {
 	return &Config{
 		NodeID: defaultID,
 
-		TCPAddress:   "127.0.0.1:9798",
-		HTTPAddress:  "127.0.0.1:9799",
-		HTTPSAddress: "127.0.0.1:9800",
+		TCPAddress:  "127.0.0.1:9798",
+		HTTPAddress: "127.0.0.1:9799",
 
 		HTTPClientConnectTimeout: 2 * time.Second,
 		HTTPClientRequestTimeout: 5 * time.Second,
