@@ -140,7 +140,7 @@ func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) err
 		packet.Payload,
 	)
 	// always store message
-	messageSeq, err := c.server.mstore.StoreMessage(ctx, m)
+	messageSeq, err := c.server.MStore.StoreMessage(ctx, m)
 	if err != nil {
 		return err
 	}
@@ -220,7 +220,7 @@ func (c *Conn) onSubscribe(ctx context.Context, packet *packets.SubscribePacket)
 	}
 
 	// store subscription to sstorage
-	err = c.server.sstore.StoreSubscription(
+	err = c.server.SStore.StoreSubscription(
 		ctx,
 		c.clientID,
 		parsedTopic,

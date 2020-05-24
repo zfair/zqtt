@@ -25,7 +25,7 @@ type MStorage interface {
 	// returning message seq and error
 	StoreMessage(ctx context.Context, m *topic.Message) (int64, error)
 	// query message from storage
-	QueryMessage(ctx context.Context, topic string, ssid topic.SSID, opts QueryOptions) ([]*topic.Message, error)
+	QueryMessage(ctx context.Context, topicName string, ssid topic.SSID, opts QueryOptions) ([]*topic.Message, error)
 }
 
 // SStorage interface for Subscription storage providers.

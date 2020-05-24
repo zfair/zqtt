@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/zfair/zqtt/src/config"
 	"github.com/zfair/zqtt/src/internal/provider/storage"
 	"github.com/zfair/zqtt/src/internal/provider/storage/postgres"
@@ -25,8 +26,8 @@ type Server struct {
 
 	subTrie *topic.SubTrie // The subscription matching trie.
 
-	mstore storage.MStorage
-	sstore storage.SStorage
+	MStore storage.MStorage
+	SStore storage.SStorage
 
 	logger *zap.Logger
 
@@ -35,6 +36,8 @@ type Server struct {
 
 	tcpServer   *tcpServer
 	tcpListener net.Listener
+
+	ginEngine *gin.Engine
 
 	waitGroup util.WaitGroupWrapper
 }
@@ -84,7 +87,7 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
-	mstore, err := config.LoadProvider(
+	MStore, err := config.LoadProvider(
 		s.ctx,
 		cfg.MStorage,
 		// register postgres storage
@@ -94,9 +97,9 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
-	s.mstore = mstore.(storage.MStorage)
+	s.MStore = MStore.(storage.MStorage)
 
-	sstore, err := config.LoadProvider(
+	SStore, err := config.LoadProvider(
 		s.ctx,
 		cfg.SStorage,
 		// register postgres storage
@@ -106,7 +109,7 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
-	s.sstore = sstore.(storage.SStorage)
+	s.SStore = SStore.(storage.SStorage)
 
 	return s, nil
 }
