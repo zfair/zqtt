@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
@@ -16,14 +17,6 @@ import (
 	"github.com/zfair/zqtt/src/internal/topic"
 	"github.com/zfair/zqtt/src/internal/util"
 	"github.com/zfair/zqtt/src/zerr"
-)
-
-const (
-	connStateInit = iota + 1
-	connStateDisconnected
-	connStateConnected
-	connStateClosing
-	connStateClosed
 )
 
 const defaultBufferSize = 16 * 1024
@@ -55,8 +48,8 @@ type Conn struct {
 	luid uint64 // local unique id of this connection
 	guid string // global unique id of this connection
 
-	state  int32
-	server *Server
+	connected int32 // atomic operation on this field
+	server    *Server
 
 	subTopics     sync.Map // save subscribed topic for this connection
 	messageIDRing *MessageIDRing
@@ -86,7 +79,7 @@ func newConn(s *Server, socket net.Conn) (*Conn, error) {
 		luid: util.NewLUID(),
 		guid: uid.String(),
 
-		state:         connStateInit,
+		connected:     0,
 		server:        s,
 		messageIDRing: NewMessageIDRing(),
 	}, nil
@@ -165,16 +158,15 @@ exit:
 
 func (c *Conn) setConnected(username string, clientID string) {
 	c.MetaLock.Lock()
-	c.state = connStateConnected
 	c.username = username
 	c.clientID = clientID
 	c.MetaLock.Unlock()
+
+	atomic.StoreInt32(&c.connected, 1)
 }
 
 func (c *Conn) isConnected() bool {
-	c.MetaLock.Lock()
-	defer c.MetaLock.Unlock()
-	return c.state == connStateConnected
+	return atomic.LoadInt32(&c.connected) == 1
 }
 
 // SendMessage sends only a *publish* message to the client.
