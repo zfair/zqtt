@@ -24,7 +24,9 @@ type Server struct {
 	ctx context.Context
 
 	subTrie *topic.SubTrie // The subscription matching trie.
-	store   storage.Storage
+
+	MStore storage.MStorage
+	SStore storage.SStorage
 
 	logger *zap.Logger
 
@@ -33,6 +35,8 @@ type Server struct {
 
 	tcpServer   *tcpServer
 	tcpListener net.Listener
+
+	httpServer *httpServer
 
 	waitGroup util.WaitGroupWrapper
 }
@@ -82,17 +86,34 @@ func NewServer(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
-	store, err := config.LoadProvider(
+	s.httpServer, err = newHTTPServer(s)
+	if err != nil {
+		return nil, err
+	}
+
+	MStore, err := config.LoadProvider(
 		s.ctx,
-		cfg.Storage,
+		cfg.MStorage,
 		// register postgres storage
-		postgres.NewStorage(cfg.Logger),
+		postgres.NewMStorage(cfg.Logger),
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	s.store = store.(storage.Storage)
+	s.MStore = MStore.(storage.MStorage)
+
+	SStore, err := config.LoadProvider(
+		s.ctx,
+		cfg.SStorage,
+		// register postgres storage
+		postgres.NewSStorage(cfg.Logger),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	s.SStore = SStore.(storage.SStorage)
 
 	return s, nil
 }
@@ -115,6 +136,10 @@ func (s *Server) Start() error {
 		exitFunc(TCPServer(s.tcpListener, s.tcpServer, s.logger))
 	})
 
+	s.waitGroup.Wrap(func() {
+		exitFunc(HTTPServer(s.httpServer))
+	})
+
 	err := <-exitCh
 	return err
 }
@@ -126,6 +151,9 @@ func (s *Server) Exit() {
 	}
 	if s.tcpServer != nil {
 		s.tcpServer.CloseAll()
+	}
+	if s.httpServer != nil {
+		s.httpServer.CloseAll()
 	}
 
 	close(s.exitChan)

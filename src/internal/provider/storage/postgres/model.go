@@ -7,10 +7,9 @@ import (
 )
 
 type messageModel struct {
-	MessageSeq int64
+	MessageSeq time.Time
 	GUID       string
 	ClientID   string
-	MessageID  int
 	TopicName  string
 	Ssid       pq.StringArray
 	SsidLen    int

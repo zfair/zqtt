@@ -27,6 +27,7 @@ const (
 )
 
 const defaultBufferSize = 16 * 1024
+const defaultPollSubscribeMessageInterval = 5 * time.Second
 
 // Conn is the broker connection.
 type Conn struct {
@@ -36,11 +37,14 @@ type Conn struct {
 	reader *bufio.Reader
 	writer *bufio.Writer
 
+	// Meta mutext
+	MetaLock sync.Mutex
 	// Writer mutex
 	writerLock sync.Mutex
 
-	HeartbeatTimeout time.Duration
-	FlushInterval    time.Duration
+	HeartbeatTimeout             time.Duration
+	FlushInterval                time.Duration
+	PollSubscribeMessageInterval time.Duration
 
 	ExitChan chan int
 	sendChan chan []byte
@@ -53,6 +57,9 @@ type Conn struct {
 
 	state  int32
 	server *Server
+
+	subTopics     sync.Map // save subscribed topic for this connection
+	messageIDRing *MessageIDRing
 }
 
 func newConn(s *Server, socket net.Conn) (*Conn, error) {
@@ -69,8 +76,9 @@ func newConn(s *Server, socket net.Conn) (*Conn, error) {
 		reader: bufio.NewReaderSize(socket, defaultBufferSize),
 		writer: bufio.NewWriterSize(socket, defaultBufferSize),
 
-		HeartbeatTimeout: s.getCfg().HeartbeatTimeout / 2,
-		FlushInterval:    s.getCfg().FlushInterval,
+		HeartbeatTimeout:             s.getCfg().HeartbeatTimeout / 2,
+		FlushInterval:                s.getCfg().FlushInterval,
+		PollSubscribeMessageInterval: defaultPollSubscribeMessageInterval,
 
 		ExitChan: make(chan int),
 		sendChan: make(chan []byte),
@@ -78,8 +86,9 @@ func newConn(s *Server, socket net.Conn) (*Conn, error) {
 		luid: util.NewLUID(),
 		guid: uid.String(),
 
-		state:  connStateInit,
-		server: s,
+		state:         connStateInit,
+		server:        s,
+		messageIDRing: NewMessageIDRing(),
 	}, nil
 }
 
@@ -155,24 +164,32 @@ exit:
 }
 
 func (c *Conn) setConnected(username string, clientID string) {
+	c.MetaLock.Lock()
 	c.state = connStateConnected
 	c.username = username
 	c.clientID = clientID
+	c.MetaLock.Unlock()
 }
 
 func (c *Conn) isConnected() bool {
+	c.MetaLock.Lock()
+	defer c.MetaLock.Unlock()
 	return c.state == connStateConnected
 }
 
 // SendMessage sends only a *publish* message to the client.
 func (c *Conn) SendMessage(ctx context.Context, msg *topic.Message) error {
+	messageID, err := c.messageIDRing.GetID()
+	if err != nil {
+		return err
+	}
 	packet := (packets.NewControlPacket(packets.Publish)).(*packets.PublishPacket)
-	packet.MessageID = msg.MessageID
+	packet.MessageID = messageID
 	packet.Qos = msg.Qos
 	packet.TopicName = msg.TopicName
 	packet.Payload = msg.Payload
 	buf := new(bytes.Buffer)
-	err := packet.Write(buf)
+	err = packet.Write(buf)
 	if err != nil {
 		return err
 	}
@@ -194,6 +211,17 @@ func (c *Conn) Send(ctx context.Context, b []byte) error {
 // Close the connection.
 func (c *Conn) Close() error {
 	err := c.socket.Close()
+	c.subTopics.Range(func(k interface{}, v interface{}) bool {
+		ssid := v.([]uint64)
+		c.server.logger.Debug(
+			"[Conn] Close Unsubscribe topic",
+			zap.String("topic", k.(string)),
+		)
+		err := c.server.subTrie.Unsubscribe(ssid, c)
+		// TODO: report error
+		_ = err
+		return true
+	})
 	return err
 }
 
@@ -212,4 +240,20 @@ func (c *Conn) Flush() error {
 	}
 
 	return nil
+}
+
+func (c *Conn) ID() uint64 {
+	return c.luid
+}
+
+func (c *Conn) Kind() topic.SubscriberKind {
+	return topic.SubscriberKindLocal
+}
+
+func (c *Conn) StoreSubTopic(ctx context.Context, topicName string, ssid []uint64) {
+	c.subTopics.Store(topicName, ssid)
+}
+
+func (c *Conn) DeleteSubTopic(ctx context.Context, topicName string) {
+	c.subTopics.Delete(topicName)
 }

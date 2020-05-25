@@ -19,112 +19,103 @@ import (
 
 const maxTTL = 30 * 24 * time.Hour
 
-// we build postgres index on topic parts
-const maxTopicParts = 8
+var _ storage.MStorage = (*MStorage)(nil)
 
-var _ storage.Storage = (*Storage)(nil)
-
-var validConfigKeywords = []string{
-	"dbname",
-	"user",
-	"password",
-	"host",
-	"port",
-	"sslmode",
-	"connect_timeout",
-}
-
-type Storage struct {
+type MStorage struct {
 	logger *zap.Logger
 	db     *sql.DB
 }
 
 // NewStorage creates a new PostgresQL storage provider.
-func NewStorage(logger *zap.Logger) *Storage {
-	return &Storage{
+func NewMStorage(logger *zap.Logger) *MStorage {
+	return &MStorage{
 		logger: logger,
 	}
 }
 
 // Name of PostgresQL storage provider.
-func (*Storage) Name() string {
+func (*MStorage) Name() string {
 	return "postgres"
 }
 
 // Configure and connect to the storage.
-func (s *Storage) Configure(ctx context.Context, config map[string]interface{}) error {
-	var sb strings.Builder
-
-	for _, key := range validConfigKeywords {
-		if value, ok := config[key]; ok {
-			cfgPart := fmt.Sprintf("%s=%s ", key, value.(string))
-			if _, err := sb.WriteString(cfgPart); err != nil {
-				return err
-			}
-		}
+func (s *MStorage) Configure(ctx context.Context, config map[string]interface{}) error {
+	connStr, err := generateConnString(ctx, config)
+	if err != nil {
+		return err
 	}
 
-	connStr := sb.String()
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return err
 	}
+
 	err = db.Ping()
 	if err != nil {
 		return err
 	}
+	s.logger.Info("[Postgres Message Storage]Connected To Postgres")
 	// TODO: SetMaxIdleConn and SetMaxOpenConn
 	s.db = db
 	return nil
 }
 
 // Close the storage connection.
-func (s *Storage) Close() error {
+func (s *MStorage) Close() error {
 	return s.db.Close()
 }
 
 // Store a topic message.
-func (s *Storage) Store(ctx context.Context, m *topic.Message) error {
+func (s *MStorage) StoreMessage(ctx context.Context, m *topic.Message) (int64, error) {
 	if len(m.Ssid) > maxTopicParts {
-		return errors.Errorf("max valid topic parts of postgres storage is %d, but got %d", maxTopicParts, len(m.Ssid))
+		return 0, errors.Errorf("max valid topic parts of postgres storage is %d, but got %d", maxTopicParts, len(m.Ssid))
 	}
 
-	conn, err := s.db.Conn(ctx)
-	if err != nil {
-		return err
-	}
 	ssidStringArray := make(pq.StringArray, len(m.Ssid))
 	for i := range m.Ssid {
 		ssidStringArray[i] = strconv.FormatUint(m.Ssid[i], 10)
 	}
-	_, err = conn.ExecContext(
+
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer conn.Close()
+
+	result := conn.QueryRowContext(
 		ctx,
 		`INSERT INTO message(
 			guid,
 			client_id,
-			message_id,
 			topic,
 			ssid,
 			ssid_len,
 			ttl_until,
 			qos,
 			payload
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		m.GUID, m.ClientID, m.MessageID, m.TopicName, ssidStringArray, len(m.Ssid), m.TTLUntil, m.Qos, string(m.Payload),
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING message_seq`,
+		m.GUID, m.ClientID, m.TopicName, ssidStringArray, len(m.Ssid), m.TTLUntil, m.Qos, string(m.Payload),
 	)
 	if err != nil {
-		return err
+		return 0, err
+	}
+	var messageSeq time.Time
+	err = result.Scan(&messageSeq)
+	if err != nil {
+		return 0, err
 	}
 	s.logger.Info(
-		"Postgres Storage Store",
+		"Postgres Message Storage Store",
 		zap.String("guid", m.GUID),
 		zap.String("clientID", m.ClientID),
+		zap.Int64("messageSeq", messageSeq.UnixNano()),
 	)
-	return nil
+	// using message create time as message seq
+	return messageSeq.UnixNano(), nil
 }
 
 // Query a topic message.
-func (s *Storage) Query(ctx context.Context, topicName string, _ssid topic.SSID, opts storage.QueryOptions) ([]*topic.Message, error) {
+func (s *MStorage) QueryMessage(ctx context.Context, topicName string, _ssid topic.SSID, opts storage.QueryOptions) ([]*topic.Message, error) {
 	// Generate Query SQL
 	sql, args, err := s.queryParse(topicName, opts)
 	if err != nil {
@@ -143,7 +134,6 @@ func (s *Storage) Query(ctx context.Context, topicName string, _ssid topic.SSID,
 			&mm.MessageSeq,
 			&mm.GUID,
 			&mm.ClientID,
-			&mm.MessageID,
 			&mm.TopicName,
 			&mm.Qos,
 			&mm.Payload,
@@ -153,14 +143,13 @@ func (s *Storage) Query(ctx context.Context, topicName string, _ssid topic.SSID,
 		message := topic.NewMessage(
 			mm.GUID,
 			mm.ClientID,
-			uint16(mm.MessageID),
 			mm.TopicName,
 			nil,
 			byte(mm.Qos),
 			mm.TTLUntil,
 			[]byte(mm.Payload),
 		)
-		message.SetMessageSeq(mm.MessageSeq)
+		message.SetMessageSeq(mm.MessageSeq.UnixNano())
 		result = append(result, message)
 	}
 	if err := rows.Err(); err != nil {
@@ -169,18 +158,17 @@ func (s *Storage) Query(ctx context.Context, topicName string, _ssid topic.SSID,
 	return result, nil
 }
 
-func (s *Storage) queryParse(topicName string, opts storage.QueryOptions) (string, []interface{}, error) {
+func (s *MStorage) queryParse(topicName string, opts storage.QueryOptions) (string, []interface{}, error) {
 	pgSQL := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-	sqlBuilder := pgSQL.Select("message_seq, guid, client_id, message_id, topic, qos, payload").From("message")
-	var zeroTime time.Time
+	sqlBuilder := pgSQL.Select("message_seq, guid, client_id, topic, qos, payload").From("message")
 	if opts.TTLUntil != 0 {
 		sqlBuilder = sqlBuilder.Where("ttl_until <= ?", opts.TTLUntil)
 	}
-	if opts.From != zeroTime {
-		sqlBuilder = sqlBuilder.Where("created_at >= ?", opts.From)
+	if opts.From != 0 {
+		sqlBuilder = sqlBuilder.Where("message_seq >= ?", opts.From)
 	}
-	if opts.Until != zeroTime {
-		sqlBuilder = sqlBuilder.Where("created_at < ?", opts.Until)
+	if opts.Until != 0 {
+		sqlBuilder = sqlBuilder.Where("message_seq < ?", opts.Until)
 	}
 
 	parts := strings.Split(topicName, "/")

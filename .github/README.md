@@ -4,7 +4,7 @@
 
 > *Work in progress.*
 
-Zqtt, a MQTT broker.
+Zqtt, a scalable and storage-pluggable IM platform.
 
 ## Development
 

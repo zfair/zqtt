@@ -17,7 +17,7 @@ type tcpServer struct {
 
 // Handle a upcoming connection.
 func (p *tcpServer) Handle(clientConn net.Conn) {
-	p.server.logger.Info("TCP: new client", zap.String("remoteAddr", clientConn.RemoteAddr().String()))
+	p.server.logger.Debug("TCP: new client", zap.String("remoteAddr", clientConn.RemoteAddr().String()))
 
 	conn, err := newConn(p.server, clientConn)
 	if err != nil {

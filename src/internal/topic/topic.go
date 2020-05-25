@@ -46,9 +46,10 @@ const (
 // and potential wildcards to match.  It is used to generate SSIDs and further
 // process the options.
 type Topic struct {
-	kind    TopicKind
-	parts   []part
-	options map[string]string
+	kind      TopicKind
+	topicName string
+	parts     []part
+	options   map[string]string
 }
 
 // Topic converts to SSID.
@@ -73,4 +74,8 @@ func (t *Topic) ToSSID() SSID {
 // Topic converts to SSID.
 func (t *Topic) Kind() TopicKind {
 	return t.kind
+}
+
+func (t *Topic) TopicName() string {
+	return t.topicName
 }

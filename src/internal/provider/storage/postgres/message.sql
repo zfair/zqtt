@@ -1,8 +1,8 @@
 CREATE TABLE message(
-    message_seq serial PRIMARY KEY,
+    id serial PRIMARY KEY,
+    message_seq timestamp default current_timestamp,
     guid text,
     client_id text,
-    message_id int,
     topic text,
     ssid text[],
     ssid_len int,
