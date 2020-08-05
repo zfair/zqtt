@@ -9,6 +9,9 @@ import (
 	"go.uber.org/zap"
 )
 
+type QueryMessageV1Request struct {
+}
+
 type httpServer struct {
 	server       *Server
 	addr         string

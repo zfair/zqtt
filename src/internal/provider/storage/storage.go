@@ -9,11 +9,13 @@ import (
 )
 
 type QueryOptions struct {
-	TTLUntil int64
-	From     int64  // query message seq from
-	Until    int64  // query message seq until
-	Limit    uint64 // query limit
-	Offset   uint64 // query offset
+	TTLUntil  int64
+	FromSeq   int64  // query message seq from
+	UntilSeq  int64  // query message seq until
+	FromTime  int64  // query message create time from (unixnano)
+	UntilTime int64  // query message create time until (unixnano)
+	Limit     uint64 // query limit
+	Offset    uint64 // query offset
 }
 
 // MStorage interface for Message storage providers.

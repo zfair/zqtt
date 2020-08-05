@@ -80,17 +80,6 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	s.swapCfg(cfg)
 	s.subTrie = topic.NewSubTrie()
 
-	s.tcpServer = &tcpServer{}
-	s.tcpListener, err = net.Listen("tcp", cfg.TCPAddress)
-	if err != nil {
-		return nil, err
-	}
-
-	s.httpServer, err = newHTTPServer(s)
-	if err != nil {
-		return nil, err
-	}
-
 	MStore, err := config.LoadProvider(
 		s.ctx,
 		cfg.MStorage,
@@ -114,6 +103,17 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	}
 
 	s.SStore = SStore.(storage.SStorage)
+
+	s.tcpServer = &tcpServer{}
+	s.tcpListener, err = net.Listen("tcp", cfg.TCPAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	s.httpServer, err = newHTTPServer(s)
+	if err != nil {
+		return nil, err
+	}
 
 	return s, nil
 }

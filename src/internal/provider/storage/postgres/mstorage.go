@@ -92,9 +92,10 @@ func (s *MStorage) StoreMessage(ctx context.Context, m *topic.Message) (int64, e
 			ssid_len,
 			ttl_until,
 			qos,
-			payload
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING message_seq`,
-		m.GUID, m.ClientID, m.TopicName, ssidStringArray, len(m.Ssid), m.TTLUntil, m.Qos, string(m.Payload),
+			payload,
+			created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING message_seq`,
+		m.GUID, m.ClientID, m.TopicName, ssidStringArray, len(m.Ssid), m.TTLUntil, m.Qos, string(m.Payload), time.Now(),
 	)
 	if err != nil {
 		return 0, err
@@ -164,11 +165,18 @@ func (s *MStorage) queryParse(topicName string, opts storage.QueryOptions) (stri
 	if opts.TTLUntil != 0 {
 		sqlBuilder = sqlBuilder.Where("ttl_until <= ?", opts.TTLUntil)
 	}
-	if opts.From != 0 {
-		sqlBuilder = sqlBuilder.Where("message_seq >= ?", opts.From)
+	if opts.FromSeq != 0 {
+		sqlBuilder = sqlBuilder.Where("message_seq >= ?", opts.FromSeq)
 	}
-	if opts.Until != 0 {
-		sqlBuilder = sqlBuilder.Where("message_seq < ?", opts.Until)
+	if opts.UntilSeq != 0 {
+		sqlBuilder = sqlBuilder.Where("message_seq < ?", opts.UntilSeq)
+	}
+	if opts.FromTime != 0 {
+		fmt.Println(time.Now().UnixNano())
+		sqlBuilder = sqlBuilder.Where("created_at >= ?", time.Unix(0, opts.FromTime))
+	}
+	if opts.UntilTime != 0 {
+		sqlBuilder = sqlBuilder.Where("created_at < ?", time.Unix(0, opts.UntilTime))
 	}
 
 	parts := strings.Split(topicName, "/")

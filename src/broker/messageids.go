@@ -15,6 +15,7 @@ type MessageIDRing struct {
 	index     map[uint16]bool
 }
 
+// MessageIDRing Generate MQTT message id
 func NewMessageIDRing() *MessageIDRing {
 	return &MessageIDRing{
 		currentID: minMessageID,

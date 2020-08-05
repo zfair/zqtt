@@ -154,7 +154,7 @@ func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) err
 	subscribers := c.server.subTrie.Lookup(ssid)
 	for _, subscriber := range subscribers {
 		// ignore sendMessage error
-		// TODO: handle puback for each subscriber
+		// because client side will poll message
 		err := subscriber.SendMessage(ctx, m)
 		if err != nil {
 			c.server.logger.Info(
