@@ -5,8 +5,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/zfair/zqtt/src/zerr"
+	"github.com/zfair/zqtt/src/zqttpb"
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
 	"github.com/pkg/errors"
@@ -58,7 +58,7 @@ exit:
 			zap.Error(err),
 		)
 	}
-	return err
+	return errors.WithStack(err)
 }
 
 // TODO(locustchen)
@@ -81,7 +81,7 @@ func (c *Conn) onPacket(ctx context.Context, packet packets.ControlPacket) error
 		)
 		err = errors.Errorf("unimplemented")
 	}
-	return err
+	return errors.WithStack(err)
 }
 
 func (c *Conn) onConnect(ctx context.Context, packet *packets.ConnectPacket) error {
@@ -98,7 +98,7 @@ func (c *Conn) onConnect(ctx context.Context, packet *packets.ConnectPacket) err
 	buf := new(bytes.Buffer)
 	err := connAck.Write(buf)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	return c.Send(ctx, buf.Bytes())
 }
@@ -111,51 +111,72 @@ func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) err
 	c.server.logger.Debug(
 		"[Broker] OnPublish",
 		zap.String("TopicName", packet.TopicName),
+		zap.String("Username", c.GetUsername()),
 		zap.Uint16("MessageID", packet.MessageID),
 		zap.Int("RemainingLength", packet.RemainingLength),
 	)
 
+	// parse topic
 	topicName := packet.TopicName
 	parser := topic.NewParser(topicName)
 	parsedTopic, err := parser.Parse()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	if parsedTopic.Kind() != topic.TopicKindStatic {
 		return errors.Errorf("Invalid Publish Topic %s", topicName)
 	}
 	ssid := parsedTopic.ToSSID()
-	// TODO: add hooks function for publish auth and extension
-	uid, err := uuid.NewRandom()
+	// unmarshal message from payload
+	m := zqttpb.Message{}
+	err = m.Unmarshal(packet.Payload)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
-	m := topic.NewMessage(
-		uid.String(),
-		c.clientID,
-		topicName,
-		ssid,
-		packet.Qos,
-		ZeroTime,
-		packet.Payload,
-	)
-	// always store message
-	messageSeq, err := c.server.MStore.StoreMessage(ctx, m)
+
+	if m.Username != c.GetUsername() {
+		return zerr.ErrMismatchMessageUsername
+	}
+
+	if m.ClientID != c.GetClientID() {
+		return zerr.ErrMismatchMessageClientID
+	}
+
+	if m.TopicName != packet.TopicName {
+		return zerr.ErrMismatchMessageTopic
+	}
+
+	if byte(m.Qos) != packet.Qos {
+		return zerr.ErrMismatchMessageQos
+	}
+
+	m.CreatedAt = time.Now().UnixNano()
+	m.Ssid = ssid
+
+	// Generate Message Seq
+	seq, err := c.server.MSeqGeneator.GenMessageSeq(ctx, parsedTopic)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
+	}
+	m.MessageSeq = seq
+
+	// always store message
+	err = c.server.MStore.StoreMessage(ctx, &m)
+	if err != nil {
+		return errors.WithStack(err)
 	}
 
 	c.server.logger.Debug(
 		"[Broker] OnPublish",
-		zap.Any("m", m.ClientID),
-		zap.Int64("messageSeq", messageSeq),
+		zap.Any("clientID", c.GetClientID()),
+		zap.Int64("messageSeq", m.MessageSeq),
 	)
 
 	subscribers := c.server.subTrie.Lookup(ssid)
 	for _, subscriber := range subscribers {
 		// ignore sendMessage error
 		// because client side will poll message
-		err := subscriber.SendMessage(ctx, m)
+		err := subscriber.SendMessage(ctx, &m)
 		if err != nil {
 			c.server.logger.Info(
 				"[Broker] SendMessage Failed",
@@ -176,7 +197,7 @@ func (c *Conn) onPublish(ctx context.Context, packet *packets.PublishPacket) err
 		buf := new(bytes.Buffer)
 		err := pubAck.Write(buf)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		return c.Send(ctx, buf.Bytes())
 	}
@@ -207,7 +228,7 @@ func (c *Conn) onSubscribe(ctx context.Context, packet *packets.SubscribePacket)
 		buf := new(bytes.Buffer)
 		err := subAck.Write(buf)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 		return c.Send(ctx, buf.Bytes())
 	}
@@ -216,7 +237,7 @@ func (c *Conn) onSubscribe(ctx context.Context, packet *packets.SubscribePacket)
 	parser := topic.NewParser(topicName)
 	parsedTopic, err := parser.Parse()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	// store subscription to sstorage
@@ -226,13 +247,13 @@ func (c *Conn) onSubscribe(ctx context.Context, packet *packets.SubscribePacket)
 		parsedTopic,
 	)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	ssid := parsedTopic.ToSSID()
 	err = c.server.subTrie.Subscribe(ssid, c)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	c.StoreSubTopic(ctx, topicName, ssid)
 	// TODO(locustchen): use buffer pool
@@ -245,7 +266,7 @@ func (c *Conn) onSubscribe(ctx context.Context, packet *packets.SubscribePacket)
 	buf := new(bytes.Buffer)
 	err = subAck.Write(buf)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	return c.Send(ctx, buf.Bytes())
 }

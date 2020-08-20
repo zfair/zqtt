@@ -1,6 +1,6 @@
 CREATE TABLE subscription(
     id serial PRIMARY KEY,
-    client_id text,
+    username text,
     topic text,
     ssid text[],
     ssid_len int,
@@ -10,7 +10,7 @@ CREATE TABLE subscription(
 
 CREATE EXTENSION btree_gin;
 CREATE INDEX idx_subscription_gin ON subscription USING GIN(
-    client_id,
+    username,
     topic,
     created_at,
     ssid_len,

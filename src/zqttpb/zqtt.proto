@@ -1,0 +1,28 @@
+syntax = "proto2";
+package zqttpb;
+
+import "gogoproto/gogo.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_getters_all) = false;
+option (gogoproto.goproto_enum_prefix_all) = false;
+
+enum MessageType {
+    MsgNone = 0;
+    MsgText = 1;
+}
+
+message Message {
+    optional int64 messageSeq = 1 [(gogoproto.nullable) = false];
+    optional string username = 2 [(gogoproto.nullable) = false];
+    optional string clientID = 3  [(gogoproto.nullable) = false];
+    optional string topicName = 4  [(gogoproto.nullable) = false];
+    repeated uint64 ssid = 5  [(gogoproto.nullable) = false];
+    optional int32 qos = 6  [(gogoproto.nullable) = false];
+    optional MessageType type = 7  [(gogoproto.nullable) = false];
+    optional bytes payload = 8  [(gogoproto.nullable) = false];
+    optional int64 createdAt = 9  [(gogoproto.nullable) = false];
+}
+

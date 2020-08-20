@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/zfair/zqtt/src/zerr"
+	"github.com/zfair/zqtt/src/zqttpb"
 )
 
 // SubscriberKind currently indicates the location of the subscriber node.
@@ -19,7 +20,7 @@ const (
 type Subscriber interface {
 	ID() uint64
 	Kind() SubscriberKind
-	SendMessage(context.Context, *Message) error
+	SendMessage(context.Context, *zqttpb.Message) error
 }
 
 type Subscribers map[uint64]Subscriber

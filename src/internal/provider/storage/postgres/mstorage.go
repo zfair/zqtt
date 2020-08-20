@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/zfair/zqtt/src/internal/provider/storage"
 	"github.com/zfair/zqtt/src/internal/topic"
+	"github.com/zfair/zqtt/src/zqttpb"
 )
 
 const maxTTL = 30 * 24 * time.Hour
@@ -42,17 +42,17 @@ func (*MStorage) Name() string {
 func (s *MStorage) Configure(ctx context.Context, config map[string]interface{}) error {
 	connStr, err := generateConnString(ctx, config)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	err = db.Ping()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	s.logger.Info("[Postgres Message Storage]Connected To Postgres")
 	// TODO: SetMaxIdleConn and SetMaxOpenConn
@@ -66,9 +66,9 @@ func (s *MStorage) Close() error {
 }
 
 // Store a topic message.
-func (s *MStorage) StoreMessage(ctx context.Context, m *topic.Message) (int64, error) {
+func (s *MStorage) StoreMessage(ctx context.Context, m *zqttpb.Message) error {
 	if len(m.Ssid) > maxTopicParts {
-		return 0, errors.Errorf("max valid topic parts of postgres storage is %d, but got %d", maxTopicParts, len(m.Ssid))
+		return errors.Errorf("max valid topic parts of postgres storage is %d, but got %d", maxTopicParts, len(m.Ssid))
 	}
 
 	ssidStringArray := make(pq.StringArray, len(m.Ssid))
@@ -78,47 +78,52 @@ func (s *MStorage) StoreMessage(ctx context.Context, m *topic.Message) (int64, e
 
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
-		return 0, err
+		return errors.WithStack(err)
 	}
 	defer conn.Close()
 
-	result := conn.QueryRowContext(
+	_, err = conn.ExecContext(
 		ctx,
 		`INSERT INTO message(
-			guid,
+			message_seq,
+			username,
 			client_id,
 			topic,
 			ssid,
 			ssid_len,
-			ttl_until,
 			qos,
+			type,
 			payload,
 			created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING message_seq`,
-		m.GUID, m.ClientID, m.TopicName, ssidStringArray, len(m.Ssid), m.TTLUntil, m.Qos, string(m.Payload), time.Now(),
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		m.MessageSeq,
+		m.Username,
+		m.ClientID,
+		m.TopicName,
+		ssidStringArray,
+		len(m.Ssid),
+		m.Qos,
+		m.Type,
+		string(m.Payload),
+		time.Unix(0, m.CreatedAt),
 	)
 	if err != nil {
-		return 0, err
-	}
-	var messageSeq time.Time
-	err = result.Scan(&messageSeq)
-	if err != nil {
-		return 0, err
+		return errors.WithStack(err)
 	}
 	s.logger.Info(
 		"Postgres Message Storage Store",
-		zap.String("guid", m.GUID),
+		zap.String("username", m.Username),
 		zap.String("clientID", m.ClientID),
-		zap.Int64("messageSeq", messageSeq.UnixNano()),
+		zap.Int64("messageSeq", m.MessageSeq),
 	)
 	// using message create time as message seq
-	return messageSeq.UnixNano(), nil
+	return nil
 }
 
 // Query a topic message.
-func (s *MStorage) QueryMessage(ctx context.Context, topicName string, _ssid topic.SSID, opts storage.QueryOptions) ([]*topic.Message, error) {
+func (s *MStorage) QueryMessage(ctx context.Context, opts storage.QueryOptions) ([]*zqttpb.Message, error) {
 	// Generate Query SQL
-	sql, args, err := s.queryParse(topicName, opts)
+	sql, args, err := s.queryParse(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -128,30 +133,24 @@ func (s *MStorage) QueryMessage(ctx context.Context, topicName string, _ssid top
 	}
 	defer rows.Close()
 
-	result := make([]*topic.Message, 0)
+	result := make([]*zqttpb.Message, 0)
 	for rows.Next() {
-		mm := messageModel{}
+		var createdAt time.Time
+		message := zqttpb.Message{}
 		if err := rows.Scan(
-			&mm.MessageSeq,
-			&mm.GUID,
-			&mm.ClientID,
-			&mm.TopicName,
-			&mm.Qos,
-			&mm.Payload,
+			&message.MessageSeq,
+			&message.Username,
+			&message.ClientID,
+			&message.TopicName,
+			&message.Qos,
+			&message.Type,
+			&message.Payload,
+			&createdAt,
 		); err != nil {
 			return nil, err
 		}
-		message := topic.NewMessage(
-			mm.GUID,
-			mm.ClientID,
-			mm.TopicName,
-			nil,
-			byte(mm.Qos),
-			mm.TTLUntil,
-			[]byte(mm.Payload),
-		)
-		message.SetMessageSeq(mm.MessageSeq.UnixNano())
-		result = append(result, message)
+		message.CreatedAt = createdAt.UnixNano()
+		result = append(result, &message)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -159,11 +158,14 @@ func (s *MStorage) QueryMessage(ctx context.Context, topicName string, _ssid top
 	return result, nil
 }
 
-func (s *MStorage) queryParse(topicName string, opts storage.QueryOptions) (string, []interface{}, error) {
+func (s *MStorage) queryParse(opts storage.QueryOptions) (string, []interface{}, error) {
 	pgSQL := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
-	sqlBuilder := pgSQL.Select("message_seq, guid, client_id, topic, qos, payload").From("message")
-	if opts.TTLUntil != 0 {
-		sqlBuilder = sqlBuilder.Where("ttl_until <= ?", opts.TTLUntil)
+	sqlBuilder := pgSQL.Select("message_seq, username, client_id, topic, qos, type, payload, created_at").From("message")
+	if opts.Type != zqttpb.MsgNone {
+		sqlBuilder = sqlBuilder.Where("type = ?", opts.Type)
+	}
+	if opts.Username != "" {
+		sqlBuilder = sqlBuilder.Where("username = ?", opts.Type)
 	}
 	if opts.FromSeq != 0 {
 		sqlBuilder = sqlBuilder.Where("message_seq >= ?", opts.FromSeq)
@@ -172,40 +174,39 @@ func (s *MStorage) queryParse(topicName string, opts storage.QueryOptions) (stri
 		sqlBuilder = sqlBuilder.Where("message_seq < ?", opts.UntilSeq)
 	}
 	if opts.FromTime != 0 {
-		fmt.Println(time.Now().UnixNano())
 		sqlBuilder = sqlBuilder.Where("created_at >= ?", time.Unix(0, opts.FromTime))
 	}
 	if opts.UntilTime != 0 {
 		sqlBuilder = sqlBuilder.Where("created_at < ?", time.Unix(0, opts.UntilTime))
 	}
 
-	parts := strings.Split(topicName, "/")
 	// parse topic into query string
-	querySsidLen := 0
-	includeMultiWildcard := false
-	for i, part := range parts {
-		switch part {
-		case topic.MultiWildcard:
-			// if match a MultiWildcard part, break
-			// # must last part of topic name
-			includeMultiWildcard = true
-			break
-		case topic.SingleWildcard:
-			// just increase but do not set this part condition
-			querySsidLen++
-		default:
-			querySsidLen++
-			hashOfPart := topic.Sum64([]byte(part))
-			sqlBuilder = sqlBuilder.Where(fmt.Sprintf("ssid[%d] = ?", i+1), strconv.FormatUint(hashOfPart, 10))
-
+	if opts.Topic != nil {
+		ssid := opts.Topic.ToSSID()
+		querySsidLen := 0
+		includeMultiWildcard := false
+		for i, part := range ssid {
+			switch part {
+			case topic.MultiWildcardHash:
+				// if match a MultiWildcard part, break
+				// # must last part of topic name
+				includeMultiWildcard = true
+				break
+			case topic.SingleWildcardHash:
+				// just increase but do not set this part condition
+				querySsidLen++
+			default:
+				querySsidLen++
+				sqlBuilder = sqlBuilder.Where(fmt.Sprintf("ssid[%d] = ?", i+1), strconv.FormatUint(ssid[i], 10))
+			}
 		}
-	}
 
-	if querySsidLen > 0 {
-		if includeMultiWildcard {
-			sqlBuilder = sqlBuilder.Where("ssid_len > ?", querySsidLen)
-		} else {
-			sqlBuilder = sqlBuilder.Where("ssid_len = ?", querySsidLen)
+		if querySsidLen > 0 {
+			if includeMultiWildcard {
+				sqlBuilder = sqlBuilder.Where("ssid_len > ?", querySsidLen)
+			} else {
+				sqlBuilder = sqlBuilder.Where("ssid_len = ?", querySsidLen)
+			}
 		}
 	}
 

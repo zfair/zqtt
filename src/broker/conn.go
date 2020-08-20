@@ -12,11 +12,13 @@ import (
 
 	"github.com/eclipse/paho.mqtt.golang/packets"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
 	"github.com/zfair/zqtt/src/internal/topic"
 	"github.com/zfair/zqtt/src/internal/util"
 	"github.com/zfair/zqtt/src/zerr"
+	"github.com/zfair/zqtt/src/zqttpb"
 )
 
 const defaultBufferSize = 16 * 1024
@@ -153,7 +155,7 @@ exit:
 		)
 	}
 
-	return err
+	return errors.WithStack(err)
 }
 
 func (c *Conn) setConnected(username string, clientID string) {
@@ -169,21 +171,29 @@ func (c *Conn) isConnected() bool {
 	return atomic.LoadInt32(&c.connected) == 1
 }
 
+func (c *Conn) GetUsername() string {
+	return c.username
+}
+
+func (c *Conn) GetClientID() string {
+	return c.clientID
+}
+
 // SendMessage sends only a *publish* message to the client.
-func (c *Conn) SendMessage(ctx context.Context, msg *topic.Message) error {
+func (c *Conn) SendMessage(ctx context.Context, msg *zqttpb.Message) error {
 	messageID, err := c.messageIDRing.GetID()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	packet := (packets.NewControlPacket(packets.Publish)).(*packets.PublishPacket)
 	packet.MessageID = messageID
-	packet.Qos = msg.Qos
+	packet.Qos = byte(msg.Qos)
 	packet.TopicName = msg.TopicName
 	packet.Payload = msg.Payload
 	buf := new(bytes.Buffer)
 	err = packet.Write(buf)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	return c.Send(ctx, buf.Bytes())
 }
@@ -214,7 +224,7 @@ func (c *Conn) Close() error {
 		_ = err
 		return true
 	})
-	return err
+	return errors.WithStack(err)
 }
 
 // Flush the send buffer.
@@ -228,7 +238,7 @@ func (c *Conn) Flush() error {
 
 	err := c.writer.Flush()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	return nil

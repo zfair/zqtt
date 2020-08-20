@@ -1,6 +1,7 @@
 nodeID: 0
 tcpAddress: 127.0.0.1:9798
 httpAddress: 127.0.0.1:9799
+
 mstorage:
   provider: postgres
   config:
@@ -11,6 +12,7 @@ mstorage:
     port: "5432"
     sslmode: disable
     connect_timeout: "10"
+
 sstorage:
   provider: postgres
   config:
@@ -21,3 +23,10 @@ sstorage:
     port: "5432"
     sslmode: disable
     connect_timeout: "10"
+
+mseqgeneator:
+  provider: redis
+  config:
+    password: ""
+    addr: "192.168.99.100:6379"
+    db: "0"

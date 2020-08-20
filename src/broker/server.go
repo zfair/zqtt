@@ -7,7 +7,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/zfair/zqtt/src/config"
+	"github.com/zfair/zqtt/src/internal/provider/seqgen"
+	"github.com/zfair/zqtt/src/internal/provider/seqgen/redis"
 	"github.com/zfair/zqtt/src/internal/provider/storage"
 	"github.com/zfair/zqtt/src/internal/provider/storage/postgres"
 	"github.com/zfair/zqtt/src/internal/topic"
@@ -25,8 +28,9 @@ type Server struct {
 
 	subTrie *topic.SubTrie // The subscription matching trie.
 
-	MStore storage.MStorage
-	SStore storage.SStorage
+	MStore       storage.MStorage
+	SStore       storage.SStorage
+	MSeqGeneator seqgen.MSeqGenerator
 
 	logger *zap.Logger
 
@@ -82,6 +86,7 @@ func NewServer(cfg *config.Config) (*Server, error) {
 
 	MStore, err := config.LoadProvider(
 		s.ctx,
+		"mstorage",
 		cfg.MStorage,
 		// register postgres storage
 		postgres.NewMStorage(cfg.Logger),
@@ -94,6 +99,7 @@ func NewServer(cfg *config.Config) (*Server, error) {
 
 	SStore, err := config.LoadProvider(
 		s.ctx,
+		"sstorage",
 		cfg.SStorage,
 		// register postgres storage
 		postgres.NewSStorage(cfg.Logger),
@@ -103,6 +109,18 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	}
 
 	s.SStore = SStore.(storage.SStorage)
+
+	MSeqGeneator, err := config.LoadProvider(
+		s.ctx,
+		"mseqgeneator",
+		cfg.MSeqGeneator,
+		redis.NewMSeqGenerator(cfg.Logger),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	s.MSeqGeneator = MSeqGeneator.(seqgen.MSeqGenerator)
 
 	s.tcpServer = &tcpServer{}
 	s.tcpListener, err = net.Listen("tcp", cfg.TCPAddress)
@@ -141,7 +159,7 @@ func (s *Server) Start() error {
 	})
 
 	err := <-exitCh
-	return err
+	return errors.WithStack(err)
 }
 
 // Exit terminates the server.

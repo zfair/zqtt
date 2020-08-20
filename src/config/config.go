@@ -54,8 +54,9 @@ type Config struct {
 	TLSMinVersion       uint16 `yaml:"tlsMinVersion"`
 
 	// Storage config.
-	MStorage *ProviderInfo `yaml:"mstorage"`
-	SStorage *ProviderInfo `yaml:"sstorage"`
+	MStorage     *ProviderInfo `yaml:"mstorage"`
+	SStorage     *ProviderInfo `yaml:"sstorage"`
+	MSeqGeneator *ProviderInfo `yaml:"mseqgeneator"`
 }
 
 // NewConfig creates a new config.
@@ -108,7 +109,10 @@ type ProviderInfo struct {
 }
 
 // LoadProvider Find And Load Provider Config Into Provider
-func LoadProvider(ctx context.Context, info *ProviderInfo, providers ...Provider) (interface{}, error) {
+func LoadProvider(ctx context.Context, name string, info *ProviderInfo, providers ...Provider) (interface{}, error) {
+	if info == nil {
+		return nil, errors.Errorf("%s Provider Info Not Found", name)
+	}
 	providerName := info.Provider
 	var provider Provider
 	for _, p := range providers {
@@ -119,7 +123,7 @@ func LoadProvider(ctx context.Context, info *ProviderInfo, providers ...Provider
 		}
 	}
 	if provider == nil {
-		return nil, errors.Errorf("Provider %s Not Found", providerName)
+		return nil, errors.Errorf("%s Provider %s Not Found", name, providerName)
 	}
 	err := provider.Configure(ctx, info.Config)
 	return provider, err

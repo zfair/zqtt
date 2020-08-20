@@ -35,17 +35,17 @@ func (*SStorage) Name() string {
 func (s *SStorage) Configure(ctx context.Context, config map[string]interface{}) error {
 	connStr, err := generateConnString(ctx, config)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	err = db.Ping()
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	s.logger.Info("[Postgres Subscription Storage]Connected To Postgres")
@@ -59,7 +59,7 @@ func (s *SStorage) Close() error {
 	return s.db.Close()
 }
 
-func (s *SStorage) StoreSubscription(ctx context.Context, clientID string, t *topic.Topic) error {
+func (s *SStorage) StoreSubscription(ctx context.Context, username string, t *topic.Topic) error {
 	ssid := t.ToSSID()
 	if len(ssid) > maxTopicParts {
 		return errors.Errorf("max valid topic parts of postgres storage is %d, but got %d", maxTopicParts, len(ssid))
@@ -72,47 +72,47 @@ func (s *SStorage) StoreSubscription(ctx context.Context, clientID string, t *to
 
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	defer conn.Close()
 
 	_, err = conn.ExecContext(
 		ctx,
 		`INSERT INTO subscription(
-			client_id,
+			username,
 			topic,
 			ssid,
 			ssid_len
 		) VALUES ($1, $2, $3, $4)`,
-		clientID, t.TopicName(), ssidStringArray, len(ssid),
+		username, t.TopicName(), ssidStringArray, len(ssid),
 	)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	s.logger.Info(
 		"Postgres Subscription Storage StoreSubscription",
-		zap.String("clientID", clientID),
+		zap.String("username", username),
 		zap.String("topicName", t.TopicName()),
 	)
 
 	return nil
 }
 
-func (s *SStorage) DeleteSubscription(ctx context.Context, clientID string, t *topic.Topic) error {
+func (s *SStorage) DeleteSubscription(ctx context.Context, username string, t *topic.Topic) error {
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 	defer conn.Close()
 
 	_, err = conn.ExecContext(
 		ctx,
-		`DELETE FROM subscription WHERE client_id = $1 AND topic = $2`,
-		clientID, t.TopicName(),
+		`DELETE FROM subscription WHERE username = $1 AND topic = $2`,
+		username, t.TopicName(),
 	)
 	if err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	return nil

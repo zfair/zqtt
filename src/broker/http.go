@@ -6,6 +6,7 @@ import (
 
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -80,7 +81,7 @@ func HTTPServer(s *httpServer) error {
 				"Server closed unexpect",
 				zap.Error(err),
 			)
-			return err
+			return errors.WithStack(err)
 		}
 	}
 	return nil

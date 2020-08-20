@@ -105,7 +105,7 @@ func (p *Parser) scan() error {
 	}
 
 	if err := p.scanParts(texts[0]); err != nil {
-		return err
+		return errors.WithStack(err)
 	}
 
 	if textsLen == 1 {
@@ -177,7 +177,7 @@ func (p *Parser) parseTopic() error {
 		p.advance()
 	default:
 		if err := p.parsePart(); err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 	}
 

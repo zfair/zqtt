@@ -12,6 +12,7 @@ import (
 
 	"github.com/zfair/zqtt/src/internal/provider/storage"
 	"github.com/zfair/zqtt/src/internal/topic"
+	"github.com/zfair/zqtt/src/zqttpb"
 )
 
 func parseTopic(topicName string) []uint64 {
@@ -30,7 +31,6 @@ func Sum64String(b []byte) string {
 
 type postgresStorageTestCase struct {
 	queryTopicName string
-	queryOptions   storage.QueryOptions
 	err            error
 	matchCount     int
 	matchTopicsID  map[string]bool
@@ -72,31 +72,27 @@ func TestPostgresStorage(t *testing.T) {
 		"hello/mqtt/zqtt/bar",
 		"hello/mqtt/zqtt/foo/bar",
 	}
-	var messages []*topic.Message
+	var messages []*zqttpb.Message
 	for i, name := range messageTopicNames {
-		m := topic.NewMessage(
-			name,            // message topic name as message guid
-			strconv.Itoa(i), // element index of messages as clientID
-			name,
-			parseTopic(name),
-			0,
-			time.Now(),
-			[]byte(name),
-		)
+		m := &zqttpb.Message{
+			MessageSeq: int64(i),
+			Username:   "test",
+			ClientID:   strconv.FormatInt(int64(i), 10),
+			TopicName:  name,
+			Ssid:       parseTopic(name),
+			Qos:        0,
+			Type:       zqttpb.MsgText,
+			Payload:    []byte(name),
+			CreatedAt:  time.Now().UnixNano(),
+		}
 		messages = append(messages, m)
 	}
-	lastSeq := int64(0)
 	for _, message := range messages {
-		seq, err := store.StoreMessage(context.Background(), message)
+		err := store.StoreMessage(context.Background(), message)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if seq <= lastSeq {
-			t.Fatalf("expect seq(%d) greater equal than lastSeq(%d)", seq, lastSeq)
-		}
-		lastSeq = seq
 	}
-	// TODO(zerolocusta) Add More Query Test
 	testCases := []postgresStorageTestCase{
 		{
 			queryTopicName: "#",
@@ -204,24 +200,25 @@ func TestPostgresStorage(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		result, err := store.QueryMessage(context.Background(), testCase.queryTopicName, nil, testCase.queryOptions)
+		tp, err := topic.NewParser(testCase.queryTopicName).Parse()
 		if err != nil {
 			t.Fatal(err)
 		}
-		// we use message topic name as it's GUID
-		resultGUIDSet := make(map[string]bool)
+		opts := storage.QueryOptions{
+			Topic: tp,
+		}
+		result, err := store.QueryMessage(context.Background(), opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resultSet := make(map[string]bool)
 		for _, ele := range result {
-			resultGUIDSet[ele.GUID] = true
+			resultSet[ele.TopicName+strconv.FormatInt(ele.MessageSeq, 10)] = true
 		}
 		assertion := assert.New(t)
-		assertion.Equal(len(resultGUIDSet), len(result))
+		assertion.Equal(len(resultSet), len(result))
 		assertion.Equal(testCase.matchCount, testCase.matchCount)
-		assertion.Equal(len(testCase.matchTopicsID), len(resultGUIDSet))
-
-		for k := range testCase.matchTopicsID {
-			_, ok := resultGUIDSet[k]
-			assertion.Equal(true, ok)
-		}
+		assertion.Equal(len(testCase.matchTopicsID), len(resultSet))
 	}
 }
 
@@ -240,95 +237,86 @@ func TestStorageQueryParse(t *testing.T) {
 	testCase := []queryParseTestCase{
 		{
 			TopicName: "#",
-			SQL:       "SELECT message_seq, guid, client_id, topic, qos, payload FROM message",
+			SQL:       "SELECT message_seq, username, client_id, topic, qos, type, payload, created_at FROM message",
 		},
 		{
 			TopicName: "hello/#",
-			SQL:       "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ssid[1] = $1 AND ssid_len > $2",
+			SQL:       "SELECT message_seq, username, client_id, topic, qos, type, payload, created_at FROM message WHERE ssid[1] = $1 AND ssid_len > $2",
 			Args:      []interface{}{Sum64String([]byte("hello")), 1},
 		},
 		{
 			TopicName: "hello/+/+",
-			SQL:       "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ssid[1] = $1 AND ssid_len = $2",
+			SQL:       "SELECT message_seq, username, client_id, topic, qos, type, payload, created_at FROM message WHERE ssid[1] = $1 AND ssid_len = $2",
 			Args:      []interface{}{Sum64String([]byte("hello")), 3},
 		},
 		{
 			TopicName: "hello/+/world",
-			SQL:       "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ssid[1] = $1 AND ssid[3] = $2 AND ssid_len = $3",
+			SQL:       "SELECT message_seq, username, client_id, topic, qos, type, payload, created_at FROM message WHERE ssid[1] = $1 AND ssid[3] = $2 AND ssid_len = $3",
 			Args:      []interface{}{Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
 		},
 		{
 			TopicName: "hello/+/world/+",
-			SQL:       "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ssid[1] = $1 AND ssid[3] = $2 AND ssid_len = $3",
+			SQL:       "SELECT message_seq, username, client_id, topic, qos, type, payload, created_at FROM message WHERE ssid[1] = $1 AND ssid[3] = $2 AND ssid_len = $3",
 			Args:      []interface{}{Sum64String([]byte("hello")), Sum64String([]byte("world")), 4},
 		},
 		{
 			TopicName: "hello/+/world",
-			Options: storage.QueryOptions{
-				TTLUntil: 1919,
-			},
-			SQL:  "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ttl_until <= $1 AND ssid[1] = $2 AND ssid[3] = $3 AND ssid_len = $4",
-			Args: []interface{}{int64(1919), Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
+			SQL:       "SELECT message_seq, username, client_id, topic, qos, type, payload, created_at FROM message WHERE ssid[1] = $1 AND ssid[3] = $2 AND ssid_len = $3",
+			Args:      []interface{}{Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
 		},
 		{
 			TopicName: "hello/+/world",
 			Options: storage.QueryOptions{
-				TTLUntil: 1919,
-				FromSeq:  fromSeq,
+				FromSeq: fromSeq,
 			},
-			SQL:  "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ttl_until <= $1 AND message_seq >= $2 AND ssid[1] = $3 AND ssid[3] = $4 AND ssid_len = $5",
-			Args: []interface{}{int64(1919), fromSeq, Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
+			SQL:  "SELECT message_seq, username, client_id, topic, qos, type, payload, created_at FROM message WHERE message_seq >= $1 AND ssid[1] = $2 AND ssid[3] = $3 AND ssid_len = $4",
+			Args: []interface{}{fromSeq, Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
 		},
 		{
 			TopicName: "hello/+/world",
 			Options: storage.QueryOptions{
-				TTLUntil: 1919,
 				FromSeq:  fromSeq,
 				UntilSeq: untilSeq,
 			},
-			SQL:  "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ttl_until <= $1 AND message_seq >= $2 AND message_seq < $3 AND ssid[1] = $4 AND ssid[3] = $5 AND ssid_len = $6",
-			Args: []interface{}{int64(1919), fromSeq, untilSeq, Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
+			SQL:  "SELECT message_seq, username, client_id, topic, qos, type, payload, created_at FROM message WHERE message_seq >= $1 AND message_seq < $2 AND ssid[1] = $3 AND ssid[3] = $4 AND ssid_len = $5",
+			Args: []interface{}{fromSeq, untilSeq, Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
 		},
 		{
 			TopicName: "hello/+/world",
 			Options: storage.QueryOptions{
-				TTLUntil: 1919,
 				FromSeq:  fromSeq,
 				UntilSeq: untilSeq,
 				Limit:    10,
 			},
-			SQL:  "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ttl_until <= $1 AND message_seq >= $2 AND message_seq < $3 AND ssid[1] = $4 AND ssid[3] = $5 AND ssid_len = $6 LIMIT 10",
-			Args: []interface{}{int64(1919), fromSeq, untilSeq, Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
+			SQL:  "SELECT message_seq, username, client_id, topic, qos, type, payload, created_at FROM message WHERE message_seq >= $1 AND message_seq < $2 AND ssid[1] = $3 AND ssid[3] = $4 AND ssid_len = $5 LIMIT 10",
+			Args: []interface{}{fromSeq, untilSeq, Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
 		},
 		{
 			TopicName: "hello/+/world",
 			Options: storage.QueryOptions{
-				TTLUntil: 1919,
 				FromSeq:  fromSeq,
 				UntilSeq: untilSeq,
 				Limit:    10,
 				Offset:   100,
 			},
-			SQL:  "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ttl_until <= $1 AND message_seq >= $2 AND message_seq < $3 AND ssid[1] = $4 AND ssid[3] = $5 AND ssid_len = $6 LIMIT 10 OFFSET 100",
-			Args: []interface{}{int64(1919), fromSeq, untilSeq, Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
+			SQL:  "SELECT message_seq, username, client_id, topic, qos, type, payload, created_at FROM message WHERE message_seq >= $1 AND message_seq < $2 AND ssid[1] = $3 AND ssid[3] = $4 AND ssid_len = $5 LIMIT 10 OFFSET 100",
+			Args: []interface{}{fromSeq, untilSeq, Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
 		},
 		{
 			TopicName: "hello/+/world",
 			Options: storage.QueryOptions{
-				TTLUntil: 1919,
 				FromSeq:  fromSeq,
 				UntilSeq: untilSeq,
 				FromTime: 1596641026797989000,
 				Limit:    10,
 				Offset:   100,
 			},
-			SQL:  "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ttl_until <= $1 AND message_seq >= $2 AND message_seq < $3 AND created_at >= $4 AND ssid[1] = $5 AND ssid[3] = $6 AND ssid_len = $7 LIMIT 10 OFFSET 100",
-			Args: []interface{}{int64(1919), fromSeq, untilSeq, time.Unix(0, 1596641026797989000), Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
+			SQL:  "SELECT message_seq, username, client_id, topic, qos, type, payload, created_at FROM message WHERE message_seq >= $1 AND message_seq < $2 AND created_at >= $3 AND ssid[1] = $4 AND ssid[3] = $5 AND ssid_len = $6 LIMIT 10 OFFSET 100",
+			Args: []interface{}{fromSeq, untilSeq, time.Unix(0, 1596641026797989000), Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
 		},
 		{
 			TopicName: "hello/+/world",
 			Options: storage.QueryOptions{
-				TTLUntil:  1919,
 				FromSeq:   fromSeq,
 				UntilSeq:  untilSeq,
 				FromTime:  1596641026797989000,
@@ -336,8 +324,8 @@ func TestStorageQueryParse(t *testing.T) {
 				Limit:     10,
 				Offset:    100,
 			},
-			SQL:  "SELECT message_seq, guid, client_id, topic, qos, payload FROM message WHERE ttl_until <= $1 AND message_seq >= $2 AND message_seq < $3 AND created_at >= $4 AND created_at < $5 AND ssid[1] = $6 AND ssid[3] = $7 AND ssid_len = $8 LIMIT 10 OFFSET 100",
-			Args: []interface{}{int64(1919), fromSeq, untilSeq, time.Unix(0, 1596641026797989000), time.Unix(0, 1696641026797989000), Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
+			SQL:  "SELECT message_seq, username, client_id, topic, qos, type, payload, created_at FROM message WHERE message_seq >= $1 AND message_seq < $2 AND created_at >= $3 AND created_at < $4 AND ssid[1] = $5 AND ssid[3] = $6 AND ssid_len = $7 LIMIT 10 OFFSET 100",
+			Args: []interface{}{fromSeq, untilSeq, time.Unix(0, 1596641026797989000), time.Unix(0, 1696641026797989000), Sum64String([]byte("hello")), Sum64String([]byte("world")), 3},
 		},
 	}
 	logger, err := zap.NewDevelopment()
@@ -346,7 +334,12 @@ func TestStorageQueryParse(t *testing.T) {
 	}
 	store := NewMStorage(logger)
 	for _, c := range testCase {
-		sql, args, err := store.queryParse(c.TopicName, c.Options)
+		tp, err := topic.NewParser(c.TopicName).Parse()
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.Options.Topic = tp
+		sql, args, err := store.queryParse(c.Options)
 		if err != nil {
 			t.Fatal(err)
 		}

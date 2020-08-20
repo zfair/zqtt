@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	MQTT "github.com/eclipse/paho.mqtt.golang"
+	"github.com/zfair/zqtt/src/zqttpb"
 )
 
 const testBrokerAddress = "tcp://127.0.0.1:9798"
@@ -39,11 +40,14 @@ func TestConnectToBroker(t *testing.T) {
 }
 
 func TestPublishMessage(t *testing.T) {
+	username := "test-publish"
+	password := "test-publish"
+	clientID := "test-publish"
 	client := newTestClient(
 		testBrokerAddress,
-		"test-publish",
-		"test-publish",
-		"test-publish",
+		username,
+		password,
+		clientID,
 	)
 
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
@@ -51,8 +55,17 @@ func TestPublishMessage(t *testing.T) {
 	}
 
 	for i := 0; i < 5; i++ {
-		text := fmt.Sprintf("this is msg #%d!", i)
-		token := client.Publish("go-mqtt/sample", 1, false, text)
+		message := zqttpb.Message{
+			Username:  username,
+			ClientID:  clientID,
+			TopicName: "go-mqtt/sample",
+			Qos:       1,
+		}
+		payload, err := message.Marshal()
+		if err != nil {
+			t.Fatal(err)
+		}
+		token := client.Publish("go-mqtt/sample", 1, false, payload)
 		token.Wait()
 		if err := token.Error(); err != nil {
 			t.Fatal(err)

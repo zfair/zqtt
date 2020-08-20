@@ -8,6 +8,7 @@ import (
 	"github.com/spaolacci/murmur3"
 	"github.com/stretchr/testify/assert"
 	"github.com/zfair/zqtt/src/zerr"
+	"github.com/zfair/zqtt/src/zqttpb"
 )
 
 func parseTopic(topic string) []uint64 {
@@ -42,7 +43,7 @@ func (s *testSubscriber) Kind() SubscriberKind {
 	return SubscriberKindLocal
 }
 
-func (s *testSubscriber) SendMessage(context.Context, *Message) error {
+func (s *testSubscriber) SendMessage(context.Context, *zqttpb.Message) error {
 	return nil
 }
 
